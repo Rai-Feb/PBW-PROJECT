@@ -1,14 +1,16 @@
 <?php
+
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
 session_start();
 require_once '../config/koneksi.php';
 
-if (!isset($_SESSION['user_id']) || $_SESSION['role'] != 'customer') {
+if (!isset($_SESSION['user_id'])) {
     header('Location: ../auth/login.php');
     exit;
 }
 
 $search = trim($_GET['q'] ?? '');
-$brand = $_GET['brand'] ?? '';
 $sort = $_GET['sort'] ?? 'terbaru';
 
 $query = "SELECT * FROM products WHERE 1=1";
@@ -16,31 +18,21 @@ $params = [];
 $types = "";
 
 if ($search !== '') {
-    $query .= " AND (nama_barang LIKE ? OR kategori LIKE ? OR deskripsi LIKE ?)";
+    $query .= " AND (nama_barang LIKE ? OR kategori LIKE ?)";
     $params[] = "%$search%";
     $params[] = "%$search%";
-    $params[] = "%$search%";
-    $types .= "sss";
+    $types .= "ss";
 }
 
-if ($brand !== '') {
-    $query .= " AND kategori = ?";
-    $params[] = $brand;
-    $types .= "s";
-}
-
-switch($sort) {
+switch ($sort) {
     case 'termurah':
-        $query .= " ORDER BY harga_min ASC, nama_barang ASC";
+        $query .= " ORDER BY harga_min ASC";
         break;
     case 'termahal':
-        $query .= " ORDER BY harga_min DESC, nama_barang DESC";
-        break;
-    case 'terlaris':
-        $query .= " ORDER BY terjual DESC, nama_barang ASC";
+        $query .= " ORDER BY harga_min DESC";
         break;
     default:
-        $query .= " ORDER BY created_at DESC, nama_barang ASC";
+        $query .= " ORDER BY id DESC";
 }
 
 $stmt = mysqli_prepare($conn, $query);
@@ -51,266 +43,575 @@ mysqli_stmt_execute($stmt);
 $result = mysqli_stmt_get_result($stmt);
 $products = mysqli_fetch_all($result, MYSQLI_ASSOC);
 
-$brands_query = mysqli_query($conn, "SELECT DISTINCT kategori FROM products WHERE kategori IS NOT NULL AND kategori != '' ORDER BY kategori ASC");
-$brands_list = [];
-while($b = mysqli_fetch_assoc($brands_query)) {
-    $brands_list[] = $b['kategori'];
+$user_email = '';
+$user_query = mysqli_query($conn, "SELECT email FROM users WHERE id = " . (int) $_SESSION['user_id']);
+if ($user_query) {
+    $user_data = mysqli_fetch_assoc($user_query);
+    $user_email = $user_data['email'] ?? '';
 }
-
-$brand_display = $brand ? ucwords(str_replace('_', ' ', $brand)) : '';
 ?>
-
 <!DOCTYPE html>
 <html lang="id">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Katalog Produk - 7Cellectronic</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <title>7Cellectronic - Premium Smartphone Store</title>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
     <style>
-        body { background-color: #f8f9fa; }
-        .navbar-brand { font-weight: 700; color: #0d6efd !important; }
-        .product-card { transition: transform 0.2s, box-shadow 0.2s; border: none; border-radius: 12px; overflow: hidden; }
-        .product-card:hover { transform: translateY(-5px); box-shadow: 0 10px 30px rgba(0,0,0,0.15); }
-        .product-img { height: 220px; object-fit: cover; background: #f8f9fa; }
-        .product-title { font-size: 14px; font-weight: 600; height: 40px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
-        .product-price { font-size: 16px; font-weight: 700; color: #198754; }
-        .filter-section { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin-bottom: 30px; }
-        .empty-state { text-align: center; padding: 60px 20px; background: white; border-radius: 12px; margin: 30px 0; }
-        .empty-state i { font-size: 64px; color: #dee2e6; margin-bottom: 20px; }
+        :root {
+            --gold-primary: #d4af37;
+            --gold-light: #f4e5c2;
+            --gold-dark: #aa8c2c;
+            --cream: #faf8f3;
+            --dark: #1a1a1a;
+            --gray: #6b7280;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+        }
+
+        body {
+            background: var(--cream);
+        }
+
+        .navbar {
+            background: white;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+            padding: 16px 0;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 32px;
+        }
+
+        .navbar-content {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .navbar-brand {
+            font-size: 1.8rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--gold-primary), var(--gold-dark));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .nav-menu {
+            display: flex;
+            gap: 32px;
+            list-style: none;
+        }
+
+        .nav-menu a {
+            text-decoration: none;
+            color: var(--gray);
+            font-weight: 600;
+            font-size: 0.95rem;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .nav-menu a:hover {
+            color: var(--gold-primary);
+        }
+
+        .user-info {
+            text-align: right;
+            padding-left: 24px;
+            border-left: 2px solid #e5e7eb;
+        }
+
+        .user-email {
+            font-size: 0.85rem;
+            color: var(--gray);
+            margin-bottom: 4px;
+        }
+
+        .logout-link {
+            color: var(--gold-primary);
+            text-decoration: none;
+            font-weight: 700;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .hero-banner {
+            background: linear-gradient(135deg, var(--gold-light) 0%, var(--cream) 100%);
+            padding: 80px 0;
+            margin-bottom: 50px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero-banner::before {
+            content: '';
+            position: absolute;
+            top: -100px;
+            right: -100px;
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, rgba(212, 175, 55, 0.1) 0%, transparent 70%);
+            border-radius: 50%;
+        }
+
+        .hero-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 60px;
+            align-items: center;
+            position: relative;
+            z-index: 1;
+        }
+
+        .hero-text h1 {
+            font-size: 3rem;
+            font-weight: 800;
+            color: var(--dark);
+            margin-bottom: 20px;
+            line-height: 1.2;
+        }
+
+        .hero-text h1 span {
+            background: linear-gradient(135deg, var(--gold-primary), var(--gold-dark));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .hero-text p {
+            font-size: 1.1rem;
+            color: var(--gray);
+            margin-bottom: 30px;
+            line-height: 1.6;
+        }
+
+        .hero-image {
+            text-align: center;
+        }
+
+        .hero-image img {
+            max-width: 100%;
+            height: auto;
+            filter: drop-shadow(0 20px 40px rgba(212, 175, 55, 0.2));
+        }
+
+        .search-section {
+            background: white;
+            padding: 24px 32px;
+            border-radius: 20px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+            margin-bottom: 50px;
+            display: flex;
+            gap: 16px;
+            align-items: center;
+        }
+
+        .search-wrapper {
+            flex: 1;
+            position: relative;
+        }
+
+        .search-wrapper i {
+            position: absolute;
+            left: 20px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--gold-primary);
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 16px 24px 16px 52px;
+            border: 2px solid #e5e7eb;
+            border-radius: 14px;
+            font-size: 1rem;
+            transition: all 0.3s;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: var(--gold-primary);
+            box-shadow: 0 0 0 4px rgba(212, 175, 55, 0.1);
+        }
+
+        .sort-select {
+            padding: 16px 24px;
+            border: 2px solid #e5e7eb;
+            border-radius: 14px;
+            font-size: 1rem;
+            background: white;
+            cursor: pointer;
+            min-width: 220px;
+            font-weight: 600;
+        }
+
+        .sort-select:focus {
+            outline: none;
+            border-color: var(--gold-primary);
+        }
+
+        .products-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 32px;
+            margin-bottom: 80px;
+        }
+
+        @media (min-width: 1600px) {
+            .products-grid {
+                grid-template-columns: repeat(5, 1fr);
+            }
+        }
+
+        @media (max-width: 1400px) {
+            .products-grid {
+                grid-template-columns: repeat(3, 1fr);
+            }
+        }
+
+        @media (max-width: 1024px) {
+            .products-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 640px) {
+            .products-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .product-card {
+            background: white;
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+            transition: all 0.4s;
+            border: 1px solid #f3f4f6;
+        }
+
+        .product-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 12px 40px rgba(212, 175, 55, 0.2);
+        }
+
+        .product-image-wrapper {
+            position: relative;
+            height: 260px;
+            background: linear-gradient(135deg, #faf8f3 0%, #f0ebe3 100%);
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .product-image {
+            max-width: 85%;
+            max-height: 85%;
+            object-fit: contain;
+            transition: transform 0.4s;
+        }
+
+        .product-card:hover .product-image {
+            transform: scale(1.05);
+        }
+
+        .badge-stock {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            padding: 8px 16px;
+            border-radius: 24px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .badge-success {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+        }
+
+        .badge-warning {
+            background: linear-gradient(135deg, #f59e0b, #d97706);
+            color: white;
+        }
+
+        .badge-danger {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            color: white;
+        }
+
+        .product-body {
+            padding: 24px;
+        }
+
+        .product-category {
+            color: var(--gold-primary);
+            font-size: 0.8rem;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            margin-bottom: 10px;
+        }
+
+        .product-title {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--dark);
+            margin-bottom: 14px;
+            line-height: 1.4;
+            height: 50px;
+            overflow: hidden;
+        }
+
+        .product-price {
+            font-size: 1.6rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--gold-primary), var(--gold-dark));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 20px;
+        }
+
+        .product-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .btn {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            font-size: 0.9rem;
+            flex: 1;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--gold-primary), var(--gold-dark));
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(212, 175, 55, 0.4);
+        }
+
+        .btn-outline {
+            background: white;
+            color: var(--gold-primary);
+            border: 2px solid var(--gold-primary);
+        }
+
+        .btn-outline:hover {
+            background: var(--gold-primary);
+            color: white;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 120px 20px;
+            background: white;
+            border-radius: 24px;
+            margin: 40px 0;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.06);
+        }
+
+        .empty-state i {
+            font-size: 5rem;
+            color: #d1d5db;
+            margin-bottom: 24px;
+        }
+
+        .footer {
+            background: var(--dark);
+            color: white;
+            padding: 50px 0 30px;
+            text-align: center;
+            margin-top: 100px;
+        }
+
+        .footer-brand {
+            font-size: 1.8rem;
+            font-weight: 800;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            background: linear-gradient(135deg, var(--gold-primary), var(--gold-dark));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .footer p {
+            opacity: 0.8;
+            font-size: 0.9rem;
+        }
     </style>
 </head>
+
 <body>
-
-<nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm sticky-top">
-    <div class="container">
-        <a class="navbar-brand" href="katalog.php">
-            <i class="fas fa-bolt text-primary"></i> 7Cellectronic
-        </a>
-        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
-            <span class="navbar-toggler-icon"></span>
-        </button>
-        <div class="collapse navbar-collapse" id="navbarNav">
-            <ul class="navbar-nav ms-auto">
-                <li class="nav-item">
-                    <a class="nav-link active" href="katalog.php"><i class="fas fa-store"></i> Katalog</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" href="keranjang.php"><i class="fas fa-shopping-cart"></i> Keranjang</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" href="pesanan.php"><i class="fas fa-box"></i> Pesanan</a>
-                </li>
-                <li class="nav-item dropdown">
-                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
-                        <i class="fas fa-user-circle"></i> <?= htmlspecialchars($_SESSION['nama'] ?? 'User') ?>
+    <nav class="navbar">
+        <div class="container">
+            <div class="navbar-content">
+                <a href="katalog.php" class="navbar-brand">
+                    <i class="fas fa-bolt"></i>
+                    7Cellectronic
+                </a>
+                <ul class="nav-menu">
+                    <li><a href="keranjang.php"><i class="fas fa-shopping-cart"></i> Keranjang</a></li>
+                    <li><a href="pesanan.php"><i class="fas fa-box"></i> Pesanan</a></li>
+                </ul>
+                <div class="user-info">
+                    <div class="user-email">
+                        <?php echo htmlspecialchars($user_email); ?>
+                    </div>
+                    <a href="../auth/logout.php" class="logout-link">
+                        <i class="fas fa-sign-out-alt"></i> Logout
                     </a>
-                    <ul class="dropdown-menu dropdown-menu-end">
-                        <li><a class="dropdown-item" href="profil.php">Profil</a></li>
-                        <li><hr class="dropdown-divider"></li>
-                        <li><a class="dropdown-item" href="../auth/logout.php">Logout</a></li>
-                    </ul>
-                </li>
-            </ul>
-        </div>
-    </div>
-</nav>
-
-<div class="container py-4">
-    <div class="row mb-4">
-        <div class="col-12">
-            <h2 class="fw-bold mb-2">
-                <i class="fas fa-mobile-alt text-primary"></i> Katalog Produk
-            </h2>
-            <p class="text-muted">Temukan gadget impian Anda dengan harga terbaik</p>
-        </div>
-    </div>
-
-    <div class="filter-section">
-        <form method="GET" action="katalog.php" class="row g-3">
-            <div class="col-lg-5 col-md-6">
-                <label class="form-label fw-semibold"><i class="fas fa-search"></i> Cari Produk</label>
-                <div class="input-group">
-                    <input type="text" name="q" class="form-control" placeholder="Cari iPhone, Samsung, Xiaomi..." value="<?= htmlspecialchars($search) ?>">
-                    <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-search"></i> Cari
-                    </button>
                 </div>
             </div>
-            
-            <div class="col-lg-3 col-md-4">
-                <label class="form-label fw-semibold"><i class="fas fa-tags"></i> Brand</label>
-                <select name="brand" class="form-select" onchange="this.form.submit()">
-                    <option value="">Semua Brand</option>
-                    <?php foreach($brands_list as $b): ?>
-                        <option value="<?= htmlspecialchars($b) ?>" <?= $brand == $b ? 'selected' : '' ?>>
-                            <?= htmlspecialchars($b) ?>
-                        </option>
-                    <?php endforeach; ?>
-                </select>
-            </div>
-            
-            <div class="col-lg-3 col-md-4">
-                <label class="form-label fw-semibold"><i class="fas fa-sort"></i> Urutkan</label>
-                <select name="sort" class="form-select" onchange="this.form.submit()">
-                    <option value="terbaru" <?= $sort == 'terbaru' ? 'selected' : '' ?>>⭐ Terbaru</option>
-                    <option value="termurah" <?= $sort == 'termurah' ? 'selected' : '' ?>>💰 Termurah</option>
-                    <option value="termahal" <?= $sort == 'termahal' ? 'selected' : '' ?>>💎 Termahal</option>
-                    <option value="terlaris" <?= $sort == 'terlaris' ? 'selected' : '' ?>>🔥 Terlaris</option>
-                </select>
-            </div>
-            
-            <div class="col-lg-1 col-md-12 d-flex align-items-end">
-                <a href="katalog.php" class="btn btn-outline-secondary w-100" title="Reset Filter">
-                    <i class="fas fa-redo"></i>
-                </a>
-            </div>
-        </form>
-    </div>
-
-    <?php if($search || $brand): ?>
-    <div class="mb-3">
-        <span class="text-muted">
-            Menampilkan: 
-            <?php if($search): ?>
-                <span class="badge bg-primary"><?= htmlspecialchars($search) ?></span>
-            <?php endif; ?>
-            <?php if($brand): ?>
-                <span class="badge bg-success"><?= htmlspecialchars($brand_display) ?></span>
-            <?php endif; ?>
-            <span class="badge bg-secondary"><?= count($products) ?> produk</span>
-        </span>
-        <a href="katalog.php" class="btn btn-sm btn-link">Clear all</a>
-    </div>
-    <?php endif; ?>
-
-    <?php if(empty($products)): ?>
-        <div class="empty-state">
-            <i class="fas fa-search"></i>
-            <h4 class="fw-bold mb-2">
-                <?php if($search): ?>
-                    Produk "<?= htmlspecialchars($search) ?>" tidak ditemukan
-                <?php elseif($brand): ?>
-                    Tidak ada produk untuk brand <?= htmlspecialchars($brand_display) ?>
-                <?php else: ?>
-                    Belum ada produk tersedia
-                <?php endif; ?>
-            </h4>
-            <p class="text-muted mb-4">
-                <?php if($search || $brand): ?>
-                    Coba ubah kata kunci atau hapus filter untuk melihat lebih banyak produk
-                <?php else: ?>
-                    Produk akan segera hadir. Stay tuned!
-                <?php endif; ?>
-            </p>
-            <a href="katalog.php" class="btn btn-primary btn-lg">
-                <i class="fas fa-store me-2"></i> Lihat Semua Produk
-            </a>
         </div>
-    <?php else: ?>
-        <div class="row g-4">
-            <?php foreach($products as $produk): ?>
-                <div class="col-lg-3 col-md-4 col-sm-6">
-                    <div class="card product-card h-100">
-                        <div class="position-relative">
-                            <?php
-                            $gambar = !empty($produk['gambar']) ? '../uploads/' . $produk['gambar'] : 'https://via.placeholder.com/300x220?text=' . urlencode($produk['nama_barang']);
-                            $gambar_path = !empty($produk['gambar']) ? '../uploads/' . $produk['gambar'] : '';
-                            $gambar_final = file_exists(__DIR__ . '/../uploads/' . $produk['gambar']) ? '../uploads/' . $produk['gambar'] : 'https://via.placeholder.com/300x220?text=No+Image';
-                            ?>
-                            <img src="<?= htmlspecialchars($gambar_final) ?>" class="card-img-top product-img" alt="<?= htmlspecialchars($produk['nama_barang']) ?>">
-                            
-                            <?php if($produk['stok'] <= 0): ?>
-                                <span class="position-absolute top-0 end-0 badge bg-danger m-2">Habis</span>
-                            <?php elseif($produk['stok'] <= 5): ?>
-                                <span class="position-absolute top-0 end-0 badge bg-warning text-dark m-2">Sisa <?= $produk['stok'] ?></span>
+    </nav>
+
+    <section class="hero-banner">
+        <div class="container">
+            <div class="hero-content">
+                <div class="hero-text">
+                    <h1>NEW SMARTPHONE <span>COMPARE MODELS</span></h1>
+                    <p>Temukan smartphone premium dengan teknologi terbaru. Kualitas terbaik, harga kompetitif, dan
+                        garansi resmi untuk kenyamanan Anda.</p>
+                    <a href="#products" class="btn btn-primary" style="padding: 16px 32px; font-size: 1rem;">
+                        <i class="fas fa-shopping-bag me-2"></i>Belanja Sekarang
+                    </a>
+                </div>
+                <div class="hero-image">
+                    <img src="https://images.unsplash.com/photo-1592899677712-a5a254503381?w=600&h=400&fit=crop"
+                        alt="Smartphone" style="border-radius: 20px;">
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div class="container">
+        <div class="search-section">
+            <div class="search-wrapper">
+                <i class="fas fa-search"></i>
+                <input type="text" class="search-input" placeholder="Cari smartphone, tablet, atau aksesoris..."
+                    value="<?php echo htmlspecialchars($search); ?>"
+                    onchange="window.location='?q='+this.value+'&sort=<?php echo $sort; ?>'">
+            </div>
+            <select class="sort-select"
+                onchange="window.location='?q=<?php echo urlencode($search); ?>&sort='+this.value">
+                <option value="terbaru" <?php echo $sort == 'terbaru' ? 'selected' : ''; ?>>⭐ Produk Terbaru</option>
+                <option value="termurah" <?php echo $sort == 'termurah' ? 'selected' : ''; ?>>💰 Harga Termurah</option>
+                <option value="termahal" <?php echo $sort == 'termahal' ? 'selected' : ''; ?>>💎 Harga Termahal</option>
+            </select>
+        </div>
+
+        <?php if (empty($products)): ?>
+            <div class="empty-state">
+                <i class="fas fa-search"></i>
+                <h3>Produk tidak ditemukan</h3>
+                <p style="color: var(--gray); margin: 12px 0 28px;">Coba gunakan kata kunci pencarian yang berbeda</p>
+                <a href="katalog.php" class="btn btn-primary">Lihat Semua Produk</a>
+            </div>
+        <?php else: ?>
+            <div class="products-grid" id="products">
+                <?php foreach ($products as $produk):
+                    $gambar = '';
+                    if (!empty($produk['gambar'])) {
+                        $full_path = __DIR__ . '/../uploads/' . $produk['gambar'];
+                        if (file_exists($full_path)) {
+                            $gambar = '../uploads/' . $produk['gambar'];
+                        } else {
+                            $gambar = 'https://images.unsplash.com/photo-1592899677712-a5a254503381?w=400&h=300&fit=crop';
+                        }
+                    } else {
+                        $gambar = 'https://images.unsplash.com/photo-1592899677712-a5a254503381?w=400&h=300&fit=crop';
+                    }
+                    $harga = $produk['harga_min'] ?? $produk['harga'] ?? 0;
+                    ?>
+                    <div class="product-card">
+                        <div class="product-image-wrapper">
+                            <img src="<?php echo htmlspecialchars($gambar); ?>"
+                                alt="<?php echo htmlspecialchars($produk['nama_barang']); ?>" class="product-image">
+                            <?php if ($produk['stok'] <= 0): ?>
+                                <span class="badge-stock badge-danger">Stok Habis</span>
+                            <?php elseif ($produk['stok'] <= 5): ?>
+                                <span class="badge-stock badge-warning">Sisa
+                                    <?php echo $produk['stok']; ?>
+                                </span>
+                            <?php else: ?>
+                                <span class="badge-stock badge-success">Tersedia</span>
                             <?php endif; ?>
                         </div>
-                        
-                        <div class="card-body d-flex flex-column">
-                            <h5 class="product-title mb-2" title="<?= htmlspecialchars($produk['nama_barang']) ?>">
-                                <?= htmlspecialchars($produk['nama_barang']) ?>
+                        <div class="product-body">
+                            <div class="product-category">
+                                <?php echo htmlspecialchars($produk['kategori']); ?>
+                            </div>
+                            <h5 class="product-title">
+                                <?php echo htmlspecialchars($produk['nama_barang']); ?>
                             </h5>
-                            
-                            <p class="text-muted small mb-2">
-                                <i class="fas fa-tag"></i> <?= htmlspecialchars($produk['kategori']) ?>
-                            </p>
-                            
-                            <div class="mt-auto">
-                                <div class="product-price mb-2">
-                                    Rp <?= number_format($produk['harga_min'] ?? $produk['harga'] ?? 0, 0, ',', '.') ?>
-                                </div>
-                                
-                                <?php if($produk['stok'] > 0): ?>
-                                    <a href="detail.php?id=<?= $produk['id'] ?>" class="btn btn-primary w-100 mb-2">
-                                        <i class="fas fa-eye me-1"></i> Lihat Detail
-                                    </a>
-                                    <form method="POST" action="add_to_cart.php" style="display: inline;">
-                                        <input type="hidden" name="product_id" value="<?= $produk['id'] ?>">
-                                        <input type="hidden" name="qty" value="1">
-                                        <button type="submit" class="btn btn-outline-primary w-100">
-                                            <i class="fas fa-cart-plus me-1"></i> Tambah ke Keranjang
-                                        </button>
-                                    </form>
-                                <?php else: ?>
-                                    <button class="btn btn-secondary w-100" disabled>
-                                        <i class="fas fa-ban me-1"></i> Stok Habis
-                                    </button>
-                                <?php endif; ?>
+                            <div class="product-price">Rp
+                                <?php echo number_format($harga, 0, ',', '.'); ?>
+                            </div>
+                            <div class="product-actions">
+                                <a href="detail.php?id=<?php echo $produk['id']; ?>" class="btn btn-primary">
+                                    <i class="fas fa-eye"></i> Detail
+                                </a>
+                                <button class="btn btn-outline" onclick="alert('Fitur keranjang segera hadir!')">
+                                    <i class="fas fa-cart-plus"></i>
+                                </button>
                             </div>
                         </div>
                     </div>
-                </div>
-            <?php endforeach; ?>
-        </div>
-        
-        <div class="text-center mt-5 mb-3">
-            <p class="text-muted">
-                Menampilkan <strong><?= count($products) ?></strong> dari <strong><?= count($products) ?></strong> produk
-            </p>
-        </div>
-    <?php endif; ?>
-</div>
-
-<footer class="bg-white border-top mt-5 py-4">
-    <div class="container text-center">
-        <p class="mb-0 text-muted">
-            <i class="fas fa-bolt text-primary"></i> <strong>7Cellectronic</strong> - Toko Elektronik Terpercaya
-        </p>
-        <small class="text-muted">© 2024 - Project UAS PBW</small>
+                <?php endforeach; ?>
+            </div>
+        <?php endif; ?>
     </div>
-</footer>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-
-<?php if(isset($_SESSION['success'])): ?>
-    <script>
-        Swal.fire({
-            icon: 'success',
-            title: 'Berhasil!',
-            text: '<?= $_SESSION['success'] ?>',
-            timer: 3000,
-            showConfirmButton: false
-        });
-    </script>
-    <?php unset($_SESSION['success']); ?>
-<?php endif; ?>
-
-<?php if(isset($_SESSION['error'])): ?>
-    <script>
-        Swal.fire({
-            icon: 'error',
-            title: 'Error!',
-            text: '<?= $_SESSION['error'] ?>',
-            timer: 3000,
-            showConfirmButton: false
-        });
-    </script>
-    <?php unset($_SESSION['error']); ?>
-<?php endif; ?>
-
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-brand">
+                <i class="fas fa-bolt"></i>
+                7Cellectronic
+            </div>
+            <p>Premium Smartphone Store - Kualitas Terbaik untuk Anda</p>
+            <p style="margin-top: 16px; opacity: 0.6;">© 2024 - Project UAS PBW</p>
+        </div>
+    </footer>
 </body>
+
 </html>

@@ -1,388 +1,468 @@
 <?php
 session_start();
-if (!isset($_SESSION['status_login']) || $_SESSION['role'] !== 'admin') {
-    header("Location: ../auth/login.php");
+require_once '../config/koneksi.php';
+
+if (!isset($_SESSION['user_id']) || $_SESSION['role'] != 'admin') {
+    header('Location: ../auth/login.php');
     exit;
 }
-include '../config/koneksi.php';
 
-$q_prod = mysqli_query($conn, "SELECT COUNT(*) as t FROM products");
-$total_produk = mysqli_fetch_assoc($q_prod)['t'];
+// Statistik
+$total_produk = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as total FROM products"))['total'] ?? 0;
+$stok_menipis = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as total FROM products WHERE stok <= 5"))['total'] ?? 0;
+$pesanan_hari_ini = mysqli_fetch_assoc(mysqli_query($conn, "SELECT COUNT(*) as total FROM orders WHERE DATE(created_at) = CURDATE()"))['total'] ?? 0;
+$pendapatan_hari_ini = mysqli_fetch_assoc(mysqli_query($conn, "SELECT SUM(total_harga) as total FROM orders WHERE DATE(created_at) = CURDATE() AND status != 'cancelled'"))['total'] ?? 0;
 
-$q_usr = mysqli_query($conn, "SELECT COUNT(*) as t FROM users WHERE role='customer'");
-$total_customer = mysqli_fetch_assoc($q_usr)['t'];
+// Alert stok rendah
+$stok_rendah = mysqli_query($conn, "SELECT id, nama_barang, stok FROM products WHERE stok <= 5 ORDER BY stok ASC LIMIT 5");
+
+// Pesanan terbaru
+$pesanan_terbaru = mysqli_query($conn, "
+    SELECT o.id, o.total_harga, o.status, o.created_at, u.nama as customer_name 
+    FROM orders o 
+    LEFT JOIN users u ON o.user_id = u.id 
+    ORDER BY o.id DESC 
+    LIMIT 8
+");
+
+// Produk terlaris
+$produk_terlaris = mysqli_query($conn, "
+    SELECT p.nama_barang, SUM(od.jumlah) as total_terjual, p.stok
+    FROM order_details od
+    JOIN products p ON od.product_id = p.id
+    GROUP BY od.product_id
+    ORDER BY total_terjual DESC
+    LIMIT 5
+");
+
+// Data Chart - 9 Brand HP (Alphabetical)
+$brands = ['Infinix', 'iPhone', 'iQOO', 'Oppo', 'Realme', 'Samsung', 'Vivo', 'Xiaomi', 'Lainnya'];
+$brand_data = [];
+
+foreach ($brands as $brand) {
+    if ($brand == 'Lainnya') {
+        $query = "SELECT SUM(stok) as total FROM products WHERE kategori NOT IN ('Infinix', 'iPhone', 'iQOO', 'Oppo', 'Realme', 'Samsung', 'Vivo', 'Xiaomi')";
+    } else {
+        $query = "SELECT SUM(stok) as total FROM products WHERE kategori = '$brand'";
+    }
+    $result = mysqli_query($conn, $query);
+    $row = mysqli_fetch_assoc($result);
+    $brand_data[] = (int) ($row['total'] ?? 0);
+}
+
+// Status pesanan untuk pie chart
+$status_chart = mysqli_query($conn, "SELECT status, COUNT(*) as total FROM orders GROUP BY status");
+$status_labels = [];
+$status_data = [];
+while ($row = mysqli_fetch_assoc($status_chart)) {
+    $status_labels[] = ucfirst($row['status']);
+    $status_data[] = (int) $row['total'];
+}
 ?>
+
 <!DOCTYPE html>
 <html lang="id">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Seller Center - tokoelectro</title>
-    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <title>Dashboard Admin - 7Cellectronic</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
-            --tk-green: #03AC0E;
-            --tk-green-dark: #00880B;
-            --tk-text: #31353B;
-            --tk-text-muted: #8D96AA;
-            --tk-border: #E5E7E9;
-            --tk-bg: #FFFFFF;
-            --tk-surface: #F3F4F5;
-            --tk-red: #FF5C5C;
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: 'Open Sans', sans-serif;
+            --primary: #667eea;
+            --secondary: #764ba2;
+            --bg: #f8f9fa;
         }
 
         body {
-            background-color: var(--tk-surface);
-            color: var(--tk-text);
-            display: flex;
-            height: 100vh;
-            overflow: hidden;
+            font-family: 'Poppins', sans-serif;
+            background: var(--bg);
         }
 
         .sidebar {
-            width: 250px;
-            background: var(--tk-bg);
-            border-right: 1px solid var(--tk-border);
-            display: flex;
-            flex-direction: column;
-        }
-
-        .sidebar-brand {
-            padding: 20px 24px;
-            font-size: 24px;
-            font-weight: 800;
-            color: var(--tk-green);
-            border-bottom: 1px solid var(--tk-border);
-            letter-spacing: -1px;
-        }
-
-        .sidebar-menu {
-            padding: 24px 16px;
-            flex: 1;
-        }
-
-        .nav-item {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 12px 16px;
-            color: var(--tk-text);
-            text-decoration: none;
-            border-radius: 8px;
-            font-weight: 600;
-            font-size: 14px;
-            margin-bottom: 8px;
-            transition: all 0.2s;
-        }
-
-        .nav-item svg {
-            width: 20px;
-            height: 20px;
-            stroke: currentColor;
-            stroke-width: 2;
-            fill: none;
-        }
-
-        .nav-item:hover {
-            background: var(--tk-surface);
-        }
-
-        .nav-item.active {
-            background: #E2F5ED;
-            color: var(--tk-green);
-        }
-
-        .sidebar-footer {
-            padding: 16px;
-            border-top: 1px solid var(--tk-border);
-        }
-
-        .main-wrapper {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
-
-        .topbar {
-            height: 70px;
-            background: var(--tk-bg);
-            border-bottom: 1px solid var(--tk-border);
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 0 32px;
-        }
-
-        .topbar-title {
-            font-size: 18px;
-            font-weight: 700;
-        }
-
-        .topbar-actions {
-            display: flex;
-            align-items: center;
-            gap: 20px;
-        }
-
-        .admin-profile {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            font-size: 14px;
-            font-weight: 600;
-        }
-
-        .avatar {
-            width: 36px;
-            height: 36px;
-            background: var(--tk-green);
+            min-height: 100vh;
+            background: linear-gradient(180deg, var(--primary), var(--secondary));
             color: white;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: bold;
         }
 
-        .content {
-            flex: 1;
-            padding: 32px;
-            overflow-y: auto;
+        .sidebar .nav-link {
+            color: rgba(255, 255, 255, 0.8);
+            padding: 12px 20px;
+            margin: 5px 10px;
+            border-radius: 10px;
+            transition: 0.3s;
         }
 
-        .metric-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-            gap: 24px;
-            margin-bottom: 32px;
+        .sidebar .nav-link:hover,
+        .sidebar .nav-link.active {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
         }
 
-        .metric-card {
-            background: var(--tk-bg);
-            border: 1px solid var(--tk-border);
-            border-radius: 12px;
+        .sidebar .nav-link i {
+            margin-right: 10px;
+            width: 20px;
+            text-align: center;
+        }
+
+        .main-content {
+            padding: 30px;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 15px;
             padding: 20px;
-            display: flex;
-            flex-direction: column;
-            box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+            transition: 0.3s;
+            height: 100%;
         }
 
-        .metric-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 16px;
+        .stat-card:hover {
+            transform: translateY(-5px);
         }
 
-        .metric-title {
-            font-size: 13px;
-            color: var(--tk-text-muted);
-            font-weight: 600;
-        }
-
-        .metric-icon {
-            width: 32px;
-            height: 32px;
-            border-radius: 8px;
+        .stat-icon {
+            width: 50px;
+            height: 50px;
+            border-radius: 12px;
             display: flex;
             align-items: center;
             justify-content: center;
+            font-size: 1.3rem;
+            color: white;
+            margin-bottom: 15px;
         }
 
-        .metric-value {
-            font-size: 28px;
-            font-weight: 800;
-            margin-bottom: 8px;
+        .bg-blue {
+            background: linear-gradient(135deg, #667eea, #764ba2);
         }
 
-        .metric-trend {
-            font-size: 12px;
+        .bg-green {
+            background: linear-gradient(135deg, #56ab2f, #a8e063);
+        }
+
+        .bg-orange {
+            background: linear-gradient(135deg, #f093fb, #f5576c);
+        }
+
+        .bg-purple {
+            background: linear-gradient(135deg, #fa709a, #fee140);
+        }
+
+        .stat-value {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: #2d3748;
+        }
+
+        .stat-label {
+            color: #718096;
+            font-size: 0.85rem;
+        }
+
+        .content-card {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+            margin-bottom: 25px;
+        }
+
+        .content-card h5 {
             font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 4px;
+            margin-bottom: 15px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
         }
 
-        .trend-up { color: var(--tk-green); }
-        .trend-down { color: var(--tk-red); }
-
-        .dashboard-section {
-            background: var(--tk-bg);
-            border: 1px solid var(--tk-border);
-            border-radius: 12px;
-            padding: 24px;
-            box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+        .badge-status {
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 600;
         }
 
-        .section-header {
+        .status-pending {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .status-paid {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .status-shipped {
+            background: #e0e7ff;
+            color: #3730a3;
+        }
+
+        .status-delivered {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .status-cancelled {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .alert-stock {
+            background: #fffbeb;
+            border-left: 4px solid #f59e0b;
+            padding: 12px 15px;
+            border-radius: 8px;
+            margin-bottom: 10px;
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 20px;
         }
 
-        .section-title {
-            font-size: 16px;
-            font-weight: 700;
-        }
-
-        .table-modern {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        .table-modern th {
-            text-align: left;
-            padding: 12px 16px;
-            font-size: 13px;
-            color: var(--tk-text-muted);
-            font-weight: 600;
-            border-bottom: 1px solid var(--tk-border);
-        }
-
-        .table-modern td {
-            padding: 16px;
-            font-size: 14px;
-            border-bottom: 1px solid var(--tk-border);
-            font-weight: 600;
-        }
-
-        .status-badge {
-            padding: 6px 12px;
+        .live-clock {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 8px 15px;
             border-radius: 20px;
-            font-size: 12px;
-            font-weight: 700;
+            font-weight: 600;
         }
-
-        .status-success { background: #E2F5ED; color: var(--tk-green); }
-        .status-pending { background: #FFF4CE; color: var(--tk-yellow); }
     </style>
 </head>
+
 <body>
 
-    <aside class="sidebar">
-        <div class="sidebar-brand">7Cellectronic</div>
-        <div class="sidebar-menu">
-            <a href="index.php" class="nav-item active">
-                <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
-                Wawasan Toko
-            </a>
-            <a href="produk.php" class="nav-item">
-                <svg viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
-                Produk
-            </a>
-            <a href="#" class="nav-item">
-                <svg viewBox="0 0 24 24"><circle cx="9" cy="21" r="1"></circle><circle cx="20" cy="21" r="1"></circle><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"></path></svg>
-                Pesanan
-            </a>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- SIDEBAR -->
+            <div class="col-md-3 col-lg-2 sidebar p-0">
+                <div class="p-3 text-center border-bottom border-white border-opacity-25">
+                    <h4 class="fw-bold mb-0"><i class="fas fa-mobile-alt me-2"></i>7Cellectronic</h4>
+                    <small>Admin Panel</small>
+                </div>
+                <nav class="nav flex-column mt-3">
+                    <a class="nav-link active" href="index.php"><i class="fas fa-home"></i> Dashboard</a>
+                    <a class="nav-link" href="produk.php"><i class="fas fa-box"></i> Kelola Produk</a>
+                    <a class="nav-link" href="pesanan.php"><i class="fas fa-shopping-cart"></i> Kelola Pesanan</a>
+                    <a class="nav-link" href="laporan.php"><i class="fas fa-chart-line"></i> Laporan</a>
+                    <a class="nav-link text-danger" href="../auth/logout.php"><i class="fas fa-sign-out-alt"></i>
+                        Logout</a>
+                </nav>
+            </div>
+
+            <!-- MAIN CONTENT -->
+            <div class="col-md-9 col-lg-10 main-content">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <div>
+                        <h2 class="fw-bold mb-1">Dashboard Admin</h2>
+                        <p class="text-muted mb-0">Pantau performa toko HP secara real-time</p>
+                    </div>
+                    <div class="live-clock" id="liveClock">
+                        <i class="far fa-clock me-2"></i><span id="clockTime">
+                            <?= date('H:i:s') ?>
+                        </span>
+                    </div>
+                </div>
+
+                <!-- STATISTIK -->
+                <div class="row g-3 mb-4">
+                    <div class="col-md-3">
+                        <div class="stat-card">
+                            <div class="stat-icon bg-blue"><i class="fas fa-mobile-alt"></i></div>
+                            <div class="stat-value">
+                                <?= $total_produk ?>
+                            </div>
+                            <div class="stat-label">Total Produk HP</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stat-card">
+                            <div class="stat-icon bg-orange"><i class="fas fa-exclamation-triangle"></i></div>
+                            <div class="stat-value">
+                                <?= $stok_menipis ?>
+                            </div>
+                            <div class="stat-label">Stok Menipis</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stat-card">
+                            <div class="stat-icon bg-green"><i class="fas fa-shopping-bag"></i></div>
+                            <div class="stat-value">
+                                <?= $pesanan_hari_ini ?>
+                            </div>
+                            <div class="stat-label">Pesanan Hari Ini</div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="stat-card">
+                            <div class="stat-icon bg-purple"><i class="fas fa-wallet"></i></div>
+                            <div class="stat-value">Rp
+                                <?= number_format($pendapatan_hari_ini, 0, ',', '.') ?>
+                            </div>
+                            <div class="stat-label">Pendapatan Hari Ini</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- CHART -->
+                <div class="row g-3 mb-4">
+                    <div class="col-lg-8">
+                        <div class="content-card">
+                            <h5><i class="fas fa-chart-bar me-2 text-primary"></i>Stok Produk per Brand HP</h5>
+                            <canvas id="chartBrand" height="120"></canvas>
+                        </div>
+                    </div>
+                    <div class="col-lg-4">
+                        <div class="content-card">
+                            <h5><i class="fas fa-chart-pie me-2 text-primary"></i>Status Pesanan</h5>
+                            <canvas id="chartStatus"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ALERT STOK -->
+                <?php if ($stok_menipis > 0): ?>
+                    <div class="content-card mb-4">
+                        <h5><i class="fas fa-bell text-warning me-2"></i>Peringatan: Stok Produk Menipis</h5>
+                        <?php while ($item = mysqli_fetch_assoc($stok_rendah)): ?>
+                            <div class="alert-stock">
+                                <div>
+                                    <strong>
+                                        <?= htmlspecialchars($item['nama_barang']) ?>
+                                    </strong>
+                                    <br><small class="text-muted">Sisa stok: <span class="text-danger fw-bold">
+                                            <?= $item['stok'] ?>
+                                        </span> unit</small>
+                                </div>
+                                <a href="produk.php?action=edit&id=<?= $item['id'] ?>" class="btn btn-sm btn-warning">
+                                    <i class="fas fa-plus me-1"></i> Tambah Stok
+                                </a>
+                            </div>
+                        <?php endwhile; ?>
+                    </div>
+                <?php endif; ?>
+
+                <!-- TABEL -->
+                <div class="row g-3">
+                    <div class="col-lg-8">
+                        <div class="content-card">
+                            <h5><i class="fas fa-clock me-2 text-primary"></i>Pesanan Terbaru</h5>
+                            <div class="table-responsive">
+                                <table class="table table-hover align-middle">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>ID Order</th>
+                                            <th>Customer</th>
+                                            <th>Total</th>
+                                            <th>Status</th>
+                                            <th>Aksi</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <?php if ($pesanan_terbaru):
+                                            while ($order = mysqli_fetch_assoc($pesanan_terbaru)): ?>
+                                                <tr>
+                                                    <td>#
+                                                        <?= $order['id'] ?>
+                                                    </td>
+                                                    <td>
+                                                        <?= htmlspecialchars($order['customer_name'] ?? 'Guest') ?>
+                                                    </td>
+                                                    <td>Rp
+                                                        <?= number_format($order['total_harga'], 0, ',', '.') ?>
+                                                    </td>
+                                                    <td><span class="badge-status status-<?= $order['status'] ?>">
+                                                            <?= ucfirst($order['status']) ?>
+                                                        </span></td>
+                                                    <td><a href="pesanan.php" class="btn btn-sm btn-outline-primary"><i
+                                                                class="fas fa-eye me-1"></i>Detail</a></td>
+                                                </tr>
+                                            <?php endwhile; else: ?>
+                                            <tr>
+                                                <td colspan="5" class="text-center text-muted py-3">Belum ada pesanan</td>
+                                            </tr>
+                                        <?php endif; ?>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-lg-4">
+                        <div class="content-card">
+                            <h5><i class="fas fa-trophy me-2 text-warning"></i>Produk Terlaris</h5>
+                            <table class="table table-sm">
+                                <thead>
+                                    <tr>
+                                        <th>Produk</th>
+                                        <th>Terjual</th>
+                                        <th>Sisa</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <?php if ($produk_terlaris):
+                                        while ($p = mysqli_fetch_assoc($produk_terlaris)): ?>
+                                            <tr>
+                                                <td>
+                                                    <?= htmlspecialchars($p['nama_barang']) ?>
+                                                </td>
+                                                <td class="fw-bold">
+                                                    <?= $p['total_terjual'] ?>
+                                                </td>
+                                                <td class="<?= $p['stok'] <= 5 ? 'text-danger' : 'text-success' ?>">
+                                                    <?= $p['stok'] ?>
+                                                </td>
+                                            </tr>
+                                        <?php endwhile; else: ?>
+                                        <tr>
+                                            <td colspan="3" class="text-center text-muted py-3">Belum ada data</td>
+                                        </tr>
+                                    <?php endif; ?>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
-        <div class="sidebar-footer">
-            <a href="../auth/logout.php" class="nav-item" style="color: var(--tk-red);">
-                <svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
-                Keluar
-            </a>
-        </div>
-    </aside>
-
-    <div class="main-wrapper">
-        <header class="topbar">
-            <div class="topbar-title">Ringkasan Statistik</div>
-            <div class="topbar-actions">
-                <div class="admin-profile">
-                    <div class="avatar">R</div>
-                    <?= $_SESSION['nama']; ?>
-                </div>
-            </div>
-        </header>
-
-        <main class="content">
-            <div class="metric-grid">
-                <div class="metric-card">
-                    <div class="metric-header">
-                        <span class="metric-title">Pendapatan Kotor</span>
-                        <div class="metric-icon" style="background: #E2F5ED; color: var(--tk-green);">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"></line><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
-                        </div>
-                    </div>
-                    <div class="metric-value">Rp 45.2M</div>
-                    <div class="metric-trend trend-up">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg>
-                        +12.5% bulan ini
-                    </div>
-                </div>
-
-                <div class="metric-card">
-                    <div class="metric-header">
-                        <span class="metric-title">Produk Aktif</span>
-                        <div class="metric-icon" style="background: #FFF4CE; color: var(--tk-yellow);">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path></svg>
-                        </div>
-                    </div>
-                    <div class="metric-value"><?= $total_produk; ?></div>
-                    <div class="metric-trend trend-up">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg>
-                        +2 produk baru
-                    </div>
-                </div>
-
-                <div class="metric-card">
-                    <div class="metric-header">
-                        <span class="metric-title">Total Pelanggan</span>
-                        <div class="metric-icon" style="background: #F3F4F5; color: var(--tk-text);">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
-                        </div>
-                    </div>
-                    <div class="metric-value"><?= $total_customer; ?></div>
-                    <div class="metric-trend trend-down">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"></polyline><polyline points="17 18 23 18 23 12"></polyline></svg>
-                        -1.2% bulan ini
-                    </div>
-                </div>
-            </div>
-
-            <div class="dashboard-section">
-                <div class="section-header">
-                    <div class="section-title">Pesanan Terbaru</div>
-                    <a href="#" style="color: var(--tk-green); text-decoration: none; font-size: 14px; font-weight: 600;">Lihat Semua</a>
-                </div>
-                <table class="table-modern">
-                    <thead>
-                        <tr>
-                            <th>ID Pesanan</th>
-                            <th>Pelanggan</th>
-                            <th>Tanggal</th>
-                            <th>Total Belanja</th>
-                            <th>Status</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td style="color: var(--tk-green);">INV/202604/001</td>
-                            <td>Budi Santoso</td>
-                            <td style="color: var(--tk-text-muted); font-weight: 400;">16 Apr 2026</td>
-                            <td>Rp 15.000.000</td>
-                            <td><span class="status-badge status-success">Selesai</span></td>
-                        </tr>
-                        <tr>
-                            <td style="color: var(--tk-green);">INV/202604/002</td>
-                            <td>Andi Pratama</td>
-                            <td style="color: var(--tk-text-muted); font-weight: 400;">15 Apr 2026</td>
-                            <td>Rp 450.000</td>
-                            <td><span class="status-badge status-pending">Diproses</span></td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        </main>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Live Clock
+        function updateClock() {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            document.getElementById('clockTime').textContent = timeString;
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        // Chart Brand HP
+        new Chart(document.getElementById('chartBrand'), {
+            type: 'bar',
+            data: {
+                labels: <?= json_encode($brands) ?>,
+                datasets: [{ label: 'Stok', data: <?= json_encode($brand_data) ?>, backgroundColor: '#667eea', borderRadius: 8 }]
+            },
+            options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } }
+        });
+
+        // Chart Status
+        new Chart(document.getElementById('chartStatus'), {
+            type: 'doughnut',
+            data: {
+                labels: <?= json_encode($status_labels) ?>,
+                datasets: [{ data: <?= json_encode($status_data) ?>, backgroundColor: ['#f59e0b', '#3b82f6', '#6366f1', '#10b981', '#ef4444'], borderWidth: 0 }]
+            },
+            options: { responsive: true, plugins: { legend: { position: 'bottom', labels: { padding: 15, usePointStyle: true } } } }
+        });
+
+        // Auto refresh setiap 30 detik
+        setInterval(() => location.reload(), 30000);
+    </script>
+
 </body>
+
 </html>
