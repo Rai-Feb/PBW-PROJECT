@@ -28,6 +28,13 @@ if ($is_logged_in) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $is_logged_in) {
     $qty = (int) ($_POST['qty'] ?? 1);
 
+    // Validasi stok
+    if ($qty > $produk['stok']) {
+        $qty = $produk['stok'];
+    }
+    if ($qty < 1)
+        $qty = 1;
+
     if (!isset($_SESSION['keranjang'])) {
         $_SESSION['keranjang'] = [];
     }
@@ -402,15 +409,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $is_logged_in) {
                         <div class="user-email">
                             <?php echo htmlspecialchars($user_email); ?>
                         </div>
-                        <a href="../auth/logout.php" class="logout-link">
-                            <i class="fas fa-sign-out-alt"></i> Logout
-                        </a>
+                        <a href="../auth/logout.php" class="logout-link"><i class="fas fa-sign-out-alt"></i> Logout</a>
                     </div>
                 <?php else: ?>
                     <div class="user-info">
-                        <a href="../auth/login.php" class="logout-link">
-                            <i class="fas fa-sign-in-alt"></i> Login
-                        </a>
+                        <a href="../auth/login.php" class="logout-link"><i class="fas fa-sign-in-alt"></i> Login</a>
                     </div>
                 <?php endif; ?>
             </div>
@@ -421,8 +424,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $is_logged_in) {
         <div class="container">
             <div class="product-wrapper">
                 <div class="product-image-wrapper">
-                    <img src="<?php echo !empty($produk['gambar']) ? '../uploads/' . $produk['gambar'] : 'https://images.unsplash.com/photo-1592899677712-a5a254503381?w=600&h=600&fit=crop'; ?>"
-                        alt="<?php echo htmlspecialchars($produk['nama_barang']); ?>" class="product-image">
+                    <?php
+                    $imagePath = '../assets/img/' . htmlspecialchars($produk['gambar']);
+                    // Cek apakah file gambar benar-benar ada (opsional, agar tidak muncul broken image)
+                    if (!empty($produk['gambar']) && file_exists($imagePath)):
+                        ?>
+                        <img src="<?php echo $imagePath; ?>" alt="<?php echo htmlspecialchars($produk['nama_barang']); ?>"
+                            class="product-image">
+                    <?php else: ?>
+                        <img src="../assets/img/placeholder.jpg" alt="Gambar tidak tersedia" class="product-image">
+                    <?php endif; ?>
                 </div>
 
                 <div class="product-info">
@@ -455,14 +466,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $is_logged_in) {
                     <div class="qty-section">
                         <label class="variant-label">Jumlah:</label>
                         <div class="qty-control">
-                            <button type="button" class="qty-btn" onclick="updateQty(-1)">
-                                <i class="fas fa-minus"></i>
-                            </button>
+                            <button type="button" class="qty-btn" onclick="updateQty(-1)"><i
+                                    class="fas fa-minus"></i></button>
                             <input type="number" name="qty" id="qtyInput" value="1" min="1"
                                 max="<?php echo $produk['stok']; ?>" class="qty-input">
-                            <button type="button" class="qty-btn" onclick="updateQty(1)">
-                                <i class="fas fa-plus"></i>
-                            </button>
+                            <button type="button" class="qty-btn" onclick="updateQty(1)"><i
+                                    class="fas fa-plus"></i></button>
                         </div>
                     </div>
 
@@ -511,10 +520,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $is_logged_in) {
             const formQty = document.getElementById('formQty');
             let newValue = parseInt(input.value) + change;
             const maxStock = <?php echo $produk['stok']; ?>;
-
             if (newValue < 1) newValue = 1;
             if (newValue > maxStock) newValue = maxStock;
-
             input.value = newValue;
             if (formQty) formQty.value = newValue;
         }

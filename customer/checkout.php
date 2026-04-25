@@ -1,5 +1,8 @@
 <?php
 session_start();
+echo '<pre>';
+var_dump($_SESSION);
+// echo '</pre>'; exit;
 require_once '../config/koneksi.php';
 
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] != 'customer') {
