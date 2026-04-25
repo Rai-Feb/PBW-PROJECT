@@ -1,7 +1,4 @@
 <?php
-
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
 session_start();
 require_once '../config/koneksi.php';
 
@@ -151,7 +148,6 @@ if ($user_query) {
             color: var(--gold-primary);
             text-decoration: none;
             font-weight: 700;
-            font-size: 0.9rem;
             display: flex;
             align-items: center;
             gap: 6px;
@@ -213,6 +209,7 @@ if ($user_query) {
         .hero-image img {
             max-width: 100%;
             height: auto;
+            border-radius: 20px;
             filter: drop-shadow(0 20px 40px rgba(212, 175, 55, 0.2));
         }
 
@@ -293,6 +290,10 @@ if ($user_query) {
         @media (max-width: 1024px) {
             .products-grid {
                 grid-template-columns: repeat(2, 1fr);
+            }
+
+            .hero-content {
+                grid-template-columns: 1fr;
             }
         }
 
@@ -473,11 +474,6 @@ if ($user_query) {
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
-
-        .footer p {
-            opacity: 0.8;
-            font-size: 0.9rem;
-        }
     </style>
 </head>
 
@@ -492,6 +488,7 @@ if ($user_query) {
                 <ul class="nav-menu">
                     <li><a href="keranjang.php"><i class="fas fa-shopping-cart"></i> Keranjang</a></li>
                     <li><a href="pesanan.php"><i class="fas fa-box"></i> Pesanan</a></li>
+                    <li><a href="chat.php"><i class="fas fa-comments"></i> Chat Support</a></li>
                 </ul>
                 <div class="user-info">
                     <div class="user-email">
@@ -512,13 +509,14 @@ if ($user_query) {
                     <h1>NEW SMARTPHONE <span>COMPARE MODELS</span></h1>
                     <p>Temukan smartphone premium dengan teknologi terbaru. Kualitas terbaik, harga kompetitif, dan
                         garansi resmi untuk kenyamanan Anda.</p>
-                    <a href="#products" class="btn btn-primary" style="padding: 16px 32px; font-size: 1rem;">
+                    <a href="#products" class="btn btn-primary"
+                        style="padding: 16px 32px; font-size: 1rem; max-width: 250px;">
                         <i class="fas fa-shopping-bag me-2"></i>Belanja Sekarang
                     </a>
                 </div>
                 <div class="hero-image">
                     <img src="https://images.unsplash.com/photo-1592899677712-a5a254503381?w=600&h=400&fit=crop"
-                        alt="Smartphone" style="border-radius: 20px;">
+                        alt="Smartphone">
                 </div>
             </div>
         </div>
@@ -591,7 +589,8 @@ if ($user_query) {
                                 <a href="detail.php?id=<?php echo $produk['id']; ?>" class="btn btn-primary">
                                     <i class="fas fa-eye"></i> Detail
                                 </a>
-                                <button class="btn btn-outline" onclick="alert('Fitur keranjang segera hadir!')">
+                                <button class="btn btn-outline"
+                                    onclick="alert('Silakan klik Detail untuk menambah ke keranjang')">
                                     <i class="fas fa-cart-plus"></i>
                                 </button>
                             </div>
@@ -608,7 +607,7 @@ if ($user_query) {
                 <i class="fas fa-bolt"></i>
                 7Cellectronic
             </div>
-            <p>Premium Smartphone Store - Kualitas Terbaik untuk Anda</p>
+            <p style="opacity: 0.8;">Premium Smartphone Store - Kualitas Terbaik untuk Anda</p>
             <p style="margin-top: 16px; opacity: 0.6;">© 2024 - Project UAS PBW</p>
         </div>
     </footer>

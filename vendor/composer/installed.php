@@ -3,7 +3,7 @@
         'name' => 'rai/7cellectronic',
         'pretty_version' => 'dev-main',
         'version' => 'dev-main',
-        'reference' => '41fc597c5bfe500f15c4c8c46523a4d6736e6d67',
+        'reference' => '59d21af836b9b217515ee0a6af0bb1bf26d5a7df',
         'type' => 'library',
         'install_path' => __DIR__ . '/../../',
         'aliases' => array(),
@@ -22,7 +22,7 @@
         'rai/7cellectronic' => array(
             'pretty_version' => 'dev-main',
             'version' => 'dev-main',
-            'reference' => '41fc597c5bfe500f15c4c8c46523a4d6736e6d67',
+            'reference' => '59d21af836b9b217515ee0a6af0bb1bf26d5a7df',
             'type' => 'library',
             'install_path' => __DIR__ . '/../../',
             'aliases' => array(),

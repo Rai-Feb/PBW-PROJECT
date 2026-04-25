@@ -1,101 +1,146 @@
 <?php
 session_start();
-if (!isset($_SESSION['status_login']) || $_SESSION['role'] !== 'admin') {
-    header("Location: ../auth/login.php");
-    exit;
-}
-include '../config/koneksi.php';
+require_once '../config/koneksi.php';
 
-if (isset($_GET['hapus'])) {
-    $id = $_GET['hapus'];
-    $cek = mysqli_query($conn, "SELECT gambar FROM products WHERE id = '$id'");
-    $data_gambar = mysqli_fetch_assoc($cek);
-    
-    if ($data_gambar['gambar'] != 'default.jpg' && file_exists("../assets/img/" . $data_gambar['gambar'])) {
-        unlink("../assets/img/" . $data_gambar['gambar']);
-    }
-    
-    mysqli_query($conn, "DELETE FROM products WHERE id = '$id'");
-    header("Location: produk.php");
+if (!isset($_SESSION['user_id']) || $_SESSION['role'] != 'admin') {
+    header('Location: ../auth/login.php');
     exit;
 }
+
+if (isset($_GET['delete'])) {
+    $id = (int) $_GET['delete'];
+    mysqli_query($conn, "DELETE FROM products WHERE id = $id");
+    header('Location: produk.php');
+    exit;
+}
+
+$page_title = 'Kelola Produk';
+include 'layout_header.php';
+
+$products = mysqli_query($conn, "SELECT * FROM products ORDER BY id DESC");
 ?>
-<!DOCTYPE html>
-<html lang="id">
-<head>
-    <meta charset="UTF-8">
-    <title>Inventaris Produk - ACE Admin</title>
-    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
-    <style>
-        :root { --tk-green: #03AC0E; --tk-text: #31353B; --tk-text-muted: #8D96AA; --tk-border: #E5E7E9; --tk-surface: #F3F4F5; --tk-red: #FF5C5C; }
-        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Open Sans', sans-serif; }
-        body { background: var(--tk-surface); color: var(--tk-text); }
-        .admin-wrapper { display: flex; min-height: 100vh; }
-        .sidebar { width: 250px; background: white; border-right: 1px solid var(--tk-border); padding: 24px 16px; }
-        .main-content { flex: 1; padding: 32px; overflow-y: auto; }
-        .nav-item { display: flex; align-items: center; gap: 12px; padding: 12px 16px; color: var(--tk-text); text-decoration: none; border-radius: 8px; font-weight: 600; margin-bottom: 8px; }
-        .nav-item.active { background: #E2F5ED; color: var(--tk-green); }
-        .nav-item:hover:not(.active) { background: var(--tk-surface); }
-        .data-card { background: white; border-radius: 12px; border: 1px solid var(--tk-border); padding: 24px; box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
-        .table-tk { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        .table-tk th { text-align: left; padding: 12px 16px; border-bottom: 1px solid var(--tk-border); color: var(--tk-text-muted); font-size: 13px; font-weight: 600; }
-        .table-tk td { padding: 16px; border-bottom: 1px solid var(--tk-border); font-size: 14px; vertical-align: middle; }
-        .product-cell { display: flex; align-items: center; gap: 16px; }
-        .thumb { width: 48px; height: 48px; border-radius: 8px; object-fit: cover; border: 1px solid var(--tk-border); }
-        .badge-kategori { background: var(--tk-surface); color: var(--tk-text); padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; }
-        .btn-action { padding: 8px 16px; border-radius: 6px; text-decoration: none; font-size: 12px; font-weight: 700; }
-        .btn-add { background: var(--tk-green); color: white; padding: 10px 20px; border-radius: 8px; font-weight: 700; text-decoration: none; display: inline-block; }
-    </style>
-</head>
-<body>
-    <div class="admin-wrapper">
-        <aside class="sidebar">
-            <div style="font-size: 24px; font-weight: 800; color: var(--tk-green); margin-bottom: 32px; letter-spacing: -1px; padding-left: 16px;">tokoelectro</div>
-            <a href="index.php" class="nav-item">Wawasan Toko</a>
-            <a href="produk.php" class="nav-item active">Produk</a>
-            <a href="../auth/logout.php" class="nav-item" style="margin-top: 50px; color: var(--tk-red);">Keluar</a>
-        </aside>
-        <main class="main-content">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
-                <h1 style="font-size: 24px; font-weight: 800;">Daftar Produk</h1>
-                <a href="tambah_produk.php" class="btn-add">+ Tambah Produk</a>
-            </div>
-            <div class="data-card">
-                <table class="table-tk">
-                    <thead>
-                        <tr>
-                            <th>INFO PRODUK</th>
-                            <th>KATEGORI</th>
-                            <th>HARGA</th>
-                            <th>STOK</th>
-                            <th>AKSI</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php
-                        $query = mysqli_query($conn, "SELECT * FROM products ORDER BY id DESC");
-                        while ($row = mysqli_fetch_assoc($query)) {
-                        ?>
-                        <tr>
-                            <td>
-                                <div class="product-cell">
-                                    <img src="../assets/img/<?= !empty($row['gambar']) ? $row['gambar'] : 'default.jpg' ?>" class="thumb" onerror="this.src='https://placehold.co/100x100?text=IMG'">
-                                    <span style="font-weight: 700;"><?= htmlspecialchars($row['nama_barang']) ?></span>
-                                </div>
-                            </td>
-                            <td><span class="badge-kategori"><?= htmlspecialchars($row['kategori']) ?></span></td>
-                            <td style="font-weight: 700;">Rp<?= number_format($row['harga'], 0, ',', '.') ?></td>
-                            <td><?= $row['stok'] ?></td>
-                            <td>
-                                <a href="edit_produk.php?id=<?= $row['id'] ?>" class="btn-action" style="background: white; border: 1px solid var(--tk-border); color: var(--tk-text);">Edit</a>
-                                <a href="produk.php?hapus=<?= $row['id'] ?>" class="btn-action" style="color: var(--tk-red); margin-left: 8px;" onclick="return confirm('Hapus produk ini secara permanen?')">Hapus</a>
-                            </td>
-                        </tr>
-                        <?php } ?>
-                    </tbody>
-                </table>
-            </div>
-        </main>
+
+<div class="page-header" style="display: flex; justify-content: space-between; align-items: center;">
+    <div>
+        <h1><i class="fas fa-box me-3"></i>Kelola Produk</h1>
+        <p style="color: var(--gray); margin-top: 8px;">Kelola semua produk di toko Anda</p>
     </div>
+    <a href="tambah_produk.php" class="btn btn-primary">
+        <i class="fas fa-plus"></i> Tambah Produk
+    </a>
+</div>
+
+<div class="content-card">
+    <div style="overflow-x: auto;">
+        <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+                <tr>
+                    <th
+                        style="text-align: left; padding: 14px 12px; background: var(--cream); font-weight: 700; color: var(--dark); font-size: 0.85rem;">
+                        ID</th>
+                    <th
+                        style="text-align: left; padding: 14px 12px; background: var(--cream); font-weight: 700; color: var(--dark); font-size: 0.85rem;">
+                        Produk</th>
+                    <th
+                        style="text-align: left; padding: 14px 12px; background: var(--cream); font-weight: 700; color: var(--dark); font-size: 0.85rem;">
+                        Kategori</th>
+                    <th
+                        style="text-align: left; padding: 14px 12px; background: var(--cream); font-weight: 700; color: var(--dark); font-size: 0.85rem;">
+                        Varian</th>
+                    <th
+                        style="text-align: left; padding: 14px 12px; background: var(--cream); font-weight: 700; color: var(--dark); font-size: 0.85rem;">
+                        Stok</th>
+                    <th
+                        style="text-align: left; padding: 14px 12px; background: var(--cream); font-weight: 700; color: var(--dark); font-size: 0.85rem;">
+                        Status</th>
+                    <th
+                        style="text-align: left; padding: 14px 12px; background: var(--cream); font-weight: 700; color: var(--dark); font-size: 0.85rem;">
+                        Aksi</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php while ($product = mysqli_fetch_assoc($products)):
+                    $varian = json_decode($product['varian'] ?? '[]', true);
+                    $varian_count = is_array($varian) ? count($varian) : 0;
+                    ?>
+                    <tr>
+                        <td style="padding: 16px 12px; border-bottom: 1px solid #f3f4f6;"><strong>#
+                                <?php echo $product['id']; ?>
+                            </strong></td>
+                        <td style="padding: 16px 12px; border-bottom: 1px solid #f3f4f6;">
+                            <div style="display: flex; align-items: center; gap: 12px;">
+                                <?php if (!empty($product['gambar'])): ?>
+                                    <img src="../uploads/<?php echo $product['gambar']; ?>"
+                                        style="width: 50px; height: 50px; object-fit: cover; border-radius: 8px;">
+                                <?php endif; ?>
+                                <div>
+                                    <div style="font-weight: 600; color: var(--dark);">
+                                        <?php echo htmlspecialchars($product['nama_barang']); ?>
+                                    </div>
+                                    <div style="font-size: 0.85rem; color: var(--gray);">
+                                        <?php if ($varian_count > 0): ?>
+                                            <?php echo $varian_count; ?> varian
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
+                        <td style="padding: 16px 12px; border-bottom: 1px solid #f3f4f6;">
+                            <?php echo htmlspecialchars($product['kategori']); ?>
+                        </td>
+                        <td style="padding: 16px 12px; border-bottom: 1px solid #f3f4f6;">
+                            <?php if ($varian_count > 0): ?>
+                                <div style="font-size: 0.85rem; color: var(--gray);">
+                                    <?php foreach (array_slice($varian, 0, 2) as $v): ?>
+                                        <div>
+                                            <?php echo $v['ram']; ?>/
+                                            <?php echo $v['rom']; ?> GB - Rp
+                                            <?php echo number_format($v['harga'], 0, ',', '.'); ?>
+                                        </div>
+                                    <?php endforeach; ?>
+                                    <?php if ($varian_count > 2): ?>
+                                        <div style="color: var(--gold-primary);">+
+                                            <?php echo ($varian_count - 2); ?> lainnya
+                                        </div>
+                                    <?php endif; ?>
+                                </div>
+                            <?php else: ?>
+                                <span style="color: var(--gray);">-</span>
+                            <?php endif; ?>
+                        </td>
+                        <td style="padding: 16px 12px; border-bottom: 1px solid #f3f4f6;">
+                            <?php echo $product['stok']; ?>
+                        </td>
+                        <td style="padding: 16px 12px; border-bottom: 1px solid #f3f4f6;">
+                            <?php if ($product['stok'] <= 0): ?>
+                                <span
+                                    style="padding: 6px 14px; border-radius: 20px; font-size: 0.8rem; font-weight: 700; background: #fee2e2; color: #991b1b;">Habis</span>
+                            <?php elseif ($product['stok'] <= 5): ?>
+                                <span
+                                    style="padding: 6px 14px; border-radius: 20px; font-size: 0.8rem; font-weight: 700; background: #fef3c7; color: #92400e;">Menipis</span>
+                            <?php else: ?>
+                                <span
+                                    style="padding: 6px 14px; border-radius: 20px; font-size: 0.8rem; font-weight: 700; background: #d1fae5; color: #065f46;">Tersedia</span>
+                            <?php endif; ?>
+                        </td>
+                        <td style="padding: 16px 12px; border-bottom: 1px solid #f3f4f6;">
+                            <a href="edit_produk.php?id=<?php echo $product['id']; ?>" class="btn btn-primary btn-sm"
+                                style="margin-right: 8px;">
+                                <i class="fas fa-edit"></i> Edit
+                            </a>
+                            <a href="produk.php?delete=<?php echo $product['id']; ?>" class="btn btn-danger btn-sm"
+                                onclick="return confirm('Hapus produk ini?')">
+                                <i class="fas fa-trash"></i> Hapus
+                            </a>
+                        </td>
+                    </tr>
+                <?php endwhile; ?>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+</main>
 </body>
+
 </html>

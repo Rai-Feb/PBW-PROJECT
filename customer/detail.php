@@ -7,11 +7,21 @@ $product_id = (int) ($_GET['id'] ?? 0);
 $stmt = mysqli_prepare($conn, "SELECT * FROM products WHERE id = ?");
 mysqli_stmt_bind_param($stmt, "i", $product_id);
 mysqli_stmt_execute($stmt);
-$produk = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));
+$result = mysqli_stmt_get_result($stmt);
+$produk = mysqli_fetch_assoc($result);
 
 if (!$produk) {
     header('Location: katalog.php');
     exit;
+}
+
+// Decode JSON Varian
+$varians = json_decode($produk['varian'], true);
+$default_harga = $produk['harga_min'];
+$selected_harga = $default_harga;
+
+if (is_array($varians) && count($varians) > 0) {
+    $selected_harga = $varians[0]['harga'];
 }
 
 $user_email = '';
@@ -23,30 +33,6 @@ if ($is_logged_in) {
         $user_data = mysqli_fetch_assoc($user_query);
         $user_email = $user_data['email'] ?? '';
     }
-}
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && $is_logged_in) {
-    $qty = (int) ($_POST['qty'] ?? 1);
-
-    // Validasi stok
-    if ($qty > $produk['stok']) {
-        $qty = $produk['stok'];
-    }
-    if ($qty < 1)
-        $qty = 1;
-
-    if (!isset($_SESSION['keranjang'])) {
-        $_SESSION['keranjang'] = [];
-    }
-
-    if (isset($_SESSION['keranjang'][$product_id])) {
-        $_SESSION['keranjang'][$product_id] += $qty;
-    } else {
-        $_SESSION['keranjang'][$product_id] = $qty;
-    }
-
-    header('Location: keranjang.php');
-    exit;
 }
 ?>
 <!DOCTYPE html>
@@ -127,6 +113,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $is_logged_in) {
             font-weight: 600;
             font-size: 0.95rem;
             transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
 
         .nav-menu a:hover {
@@ -152,40 +141,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $is_logged_in) {
         }
 
         .product-detail {
-            padding: 60px 0;
+            padding: 40px 0;
         }
 
         .product-wrapper {
             background: white;
             border-radius: 24px;
-            padding: 48px;
+            padding: 40px;
             box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 60px;
+            align-items: start;
         }
 
         .product-image-wrapper {
             background: linear-gradient(135deg, var(--gold-light) 0%, var(--cream) 100%);
             border-radius: 20px;
-            padding: 40px;
+            padding: 20px;
             display: flex;
             align-items: center;
             justify-content: center;
-            min-height: 500px;
+            width: 100%;
+            aspect-ratio: 1 / 1;
+            overflow: hidden;
         }
 
         .product-image {
             max-width: 100%;
-            max-height: 450px;
+            max-height: 100%;
             object-fit: contain;
+            transition: transform 0.3s;
         }
 
-        .product-info h1 {
-            font-size: 2.2rem;
-            font-weight: 800;
-            color: var(--dark);
-            margin-bottom: 16px;
+        .product-image:hover {
+            transform: scale(1.05);
+        }
+
+        .product-info {
+            padding-top: 10px;
         }
 
         .product-category {
@@ -194,7 +188,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $is_logged_in) {
             font-weight: 700;
             text-transform: uppercase;
             letter-spacing: 1px;
-            margin-bottom: 24px;
+            margin-bottom: 12px;
+        }
+
+        .product-title {
+            font-size: 2rem;
+            font-weight: 800;
+            color: var(--dark);
+            margin-bottom: 16px;
+            line-height: 1.2;
         }
 
         .product-price {
@@ -203,27 +205,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $is_logged_in) {
             background: linear-gradient(135deg, var(--gold-primary), var(--gold-dark));
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
-            margin-bottom: 32px;
+            margin-bottom: 24px;
         }
 
         .stock-info {
             display: flex;
             align-items: center;
             gap: 12px;
-            padding: 16px 20px;
+            padding: 14px 20px;
             background: #f0fdf4;
             border-radius: 12px;
             margin-bottom: 32px;
+            width: fit-content;
         }
 
         .stock-info i {
             color: #10b981;
-            font-size: 1.3rem;
         }
 
         .stock-info span {
             font-weight: 600;
-            color: var(--dark);
+            color: #064e3b;
         }
 
         .variant-section {
@@ -244,91 +246,106 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $is_logged_in) {
         }
 
         .variant-btn {
-            padding: 14px 28px;
+            padding: 12px 24px;
             border: 2px solid #e5e7eb;
             background: white;
             border-radius: 12px;
             cursor: pointer;
-            transition: all 0.3s;
+            transition: all 0.2s;
             font-weight: 600;
+            font-size: 0.95rem;
+            color: var(--gray);
         }
 
-        .variant-btn:hover,
+        .variant-btn:hover {
+            border-color: var(--gold-primary);
+            color: var(--gold-primary);
+        }
+
         .variant-btn.active {
             border-color: var(--gold-primary);
             background: var(--gold-light);
             color: var(--dark);
+            box-shadow: 0 4px 12px rgba(212, 175, 55, 0.2);
         }
 
         .qty-section {
-            margin-bottom: 40px;
+            margin-bottom: 32px;
+            display: flex;
+            align-items: center;
+            gap: 20px;
         }
 
         .qty-control {
             display: flex;
             align-items: center;
-            gap: 16px;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            overflow: hidden;
         }
 
         .qty-btn {
             width: 44px;
             height: 44px;
-            border: 2px solid #e5e7eb;
+            border: none;
             background: white;
-            border-radius: 12px;
             cursor: pointer;
-            transition: all 0.3s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
             font-size: 1.2rem;
+            color: var(--dark);
+            transition: 0.2s;
         }
 
         .qty-btn:hover {
-            border-color: var(--gold-primary);
-            color: var(--gold-primary);
+            background: #f3f4f6;
         }
 
         .qty-input {
-            width: 80px;
+            width: 60px;
             height: 44px;
+            border: none;
             text-align: center;
-            border: 2px solid #e5e7eb;
-            border-radius: 12px;
             font-weight: 700;
             font-size: 1.1rem;
+            border-left: 1px solid #e5e7eb;
+            border-right: 1px solid #e5e7eb;
         }
 
         .qty-input:focus {
             outline: none;
-            border-color: var(--gold-primary);
         }
 
-        .description-section {
-            margin-bottom: 40px;
+        /* Total Price Section */
+        .total-section {
+            background: var(--cream);
+            padding: 20px;
+            border-radius: 16px;
+            margin-bottom: 32px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border: 2px solid var(--gold-light);
         }
 
-        .description-section h3 {
-            font-size: 1.3rem;
+        .total-label {
             font-weight: 700;
             color: var(--dark);
-            margin-bottom: 16px;
-            padding-bottom: 12px;
-            border-bottom: 2px solid #f3f4f6;
+            font-size: 1.1rem;
         }
 
-        .description-section p {
-            color: var(--gray);
-            line-height: 1.8;
+        .total-value {
+            font-weight: 800;
+            color: var(--gold-dark);
+            font-size: 1.4rem;
         }
 
         .action-buttons {
             display: flex;
             gap: 16px;
+            margin-top: 30px;
         }
 
         .btn {
-            padding: 18px 36px;
+            padding: 16px 36px;
             border: none;
             border-radius: 14px;
             font-weight: 700;
@@ -350,7 +367,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $is_logged_in) {
 
         .btn-primary:hover {
             transform: translateY(-2px);
-            box-shadow: 0 12px 35px rgba(212, 175, 55, 0.4);
+            box-shadow: 0 10px 25px rgba(212, 175, 55, 0.4);
         }
 
         .btn-outline {
@@ -364,10 +381,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $is_logged_in) {
             color: white;
         }
 
-        .btn-disabled {
-            background: #e5e7eb;
-            color: #9ca3af;
-            cursor: not-allowed;
+        .description-section {
+            margin-top: 40px;
+            padding-top: 30px;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        .description-section h3 {
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--dark);
+            margin-bottom: 12px;
+        }
+
+        .description-section p {
+            color: var(--gray);
+            line-height: 1.7;
         }
 
         .footer {
@@ -382,10 +411,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $is_logged_in) {
             .product-wrapper {
                 grid-template-columns: 1fr;
                 gap: 40px;
-            }
-
-            .product-image-wrapper {
-                min-height: 350px;
+                padding: 24px;
             }
         }
     </style>
@@ -396,8 +422,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $is_logged_in) {
         <div class="container">
             <div class="navbar-content">
                 <a href="katalog.php" class="navbar-brand">
-                    <i class="fas fa-bolt"></i>
-                    7Cellectronic
+                    <i class="fas fa-bolt"></i> 7Cellectronic
                 </a>
                 <ul class="nav-menu">
                     <li><a href="katalog.php"><i class="fas fa-store"></i> Katalog</a></li>
@@ -423,28 +448,38 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $is_logged_in) {
     <div class="product-detail">
         <div class="container">
             <div class="product-wrapper">
+                <!-- Gambar Produk -->
                 <div class="product-image-wrapper">
                     <?php
-                    $imagePath = '../assets/img/' . htmlspecialchars($produk['gambar']);
-                    // Cek apakah file gambar benar-benar ada (opsional, agar tidak muncul broken image)
-                    if (!empty($produk['gambar']) && file_exists($imagePath)):
-                        ?>
-                        <img src="<?php echo $imagePath; ?>" alt="<?php echo htmlspecialchars($produk['nama_barang']); ?>"
-                            class="product-image">
-                    <?php else: ?>
-                        <img src="../assets/img/placeholder.jpg" alt="Gambar tidak tersedia" class="product-image">
-                    <?php endif; ?>
+                    $gambar_detail = '';
+                    if (!empty($produk['gambar'])) {
+                        $full_path = __DIR__ . '/../uploads/' . $produk['gambar'];
+                        if (file_exists($full_path)) {
+                            $gambar_detail = '../uploads/' . $produk['gambar'];
+                        } else {
+                            $gambar_detail = 'https://images.unsplash.com/photo-1592899677712-a5a254503381?w=600&h=600&fit=crop';
+                        }
+                    } else {
+                        $gambar_detail = 'https://images.unsplash.com/photo-1592899677712-a5a254503381?w=600&h=600&fit=crop';
+                    }
+                    ?>
+                    <img src="<?php echo htmlspecialchars($gambar_detail); ?>"
+                        alt="<?php echo htmlspecialchars($produk['nama_barang']); ?>" class="product-image">
                 </div>
 
+                <!-- Info Produk -->
                 <div class="product-info">
                     <div class="product-category">
                         <?php echo htmlspecialchars($produk['kategori']); ?>
                     </div>
-                    <h1>
+                    <h1 class="product-title">
                         <?php echo htmlspecialchars($produk['nama_barang']); ?>
                     </h1>
-                    <div class="product-price">Rp
-                        <?php echo number_format($produk['harga_min'] ?? $produk['harga'], 0, ',', '.'); ?>
+
+                    <!-- Harga Satuan -->
+                    <div class="product-price" id="unit-price">
+                        Rp
+                        <?php echo number_format($selected_harga, 0, ',', '.'); ?>
                     </div>
 
                     <div class="stock-info">
@@ -454,47 +489,72 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $is_logged_in) {
                         </span>
                     </div>
 
+                    <!-- Pilihan Varian -->
                     <div class="variant-section">
                         <label class="variant-label">Pilih Varian RAM/ROM:</label>
-                        <div class="variant-options">
-                            <button type="button" class="variant-btn active">8/256 GB</button>
-                            <button type="button" class="variant-btn">12/256 GB</button>
-                            <button type="button" class="variant-btn">12/512 GB</button>
+                        <div class="variant-options" id="variant-buttons">
+                            <?php
+                            if (is_array($varians) && count($varians) > 0):
+                                foreach ($varians as $index => $varian):
+                                    $activeClass = ($index == 0) ? 'active' : '';
+                                    ?>
+                                    <button type="button" class="variant-btn <?php echo $activeClass; ?>"
+                                        onclick="updatePrice(<?php echo $varian['harga']; ?>, this)"
+                                        data-harga="<?php echo $varian['harga']; ?>">
+                                        <?php echo $varian['ram']; ?>/
+                                        <?php echo $varian['rom']; ?> GB
+                                    </button>
+                                <?php endforeach;
+                            endif;
+                            ?>
                         </div>
                     </div>
 
                     <div class="qty-section">
-                        <label class="variant-label">Jumlah:</label>
+                        <label class="variant-label" style="margin:0;">Jumlah:</label>
                         <div class="qty-control">
-                            <button type="button" class="qty-btn" onclick="updateQty(-1)"><i
-                                    class="fas fa-minus"></i></button>
+                            <button type="button" class="qty-btn" onclick="updateQty(-1)">-</button>
                             <input type="number" name="qty" id="qtyInput" value="1" min="1"
-                                max="<?php echo $produk['stok']; ?>" class="qty-input">
-                            <button type="button" class="qty-btn" onclick="updateQty(1)"><i
-                                    class="fas fa-plus"></i></button>
+                                max="<?php echo $produk['stok']; ?>" class="qty-input" readonly>
+                            <button type="button" class="qty-btn" onclick="updateQty(1)">+</button>
                         </div>
+                    </div>
+
+                    <!-- Total Harga Section (BARU) -->
+                    <div class="total-section">
+                        <span class="total-label">Total Harga</span>
+                        <span class="total-value" id="total-price">Rp
+                            <?php echo number_format($selected_harga, 0, ',', '.'); ?>
+                        </span>
                     </div>
 
                     <div class="description-section">
                         <h3>Deskripsi Produk</h3>
                         <p>
-                            <?php echo htmlspecialchars($produk['deskripsi'] ?? 'Produk berkualitas dengan garansi resmi. Spesifikasi lengkap dan fitur terbaru untuk pengalaman terbaik.'); ?>
+                            <?php echo htmlspecialchars($produk['deskripsi'] ?? 'Produk berkualitas tinggi dengan garansi resmi.'); ?>
                         </p>
                     </div>
 
                     <div class="action-buttons">
                         <?php if ($is_logged_in): ?>
-                            <form method="POST" style="flex: 1;">
+                            <form method="POST" action="keranjang.php" style="flex: 1;" id="addToCartForm">
+                                <input type="hidden" name="product_id" value="<?php echo $product_id; ?>">
                                 <input type="hidden" name="qty" id="formQty" value="1">
-                                <button type="submit" class="btn btn-primary" <?php echo $produk['stok'] <= 0 ? 'disabled' : ''; ?>>
+                                <input type="hidden" name="variant_price" id="formVariantPrice"
+                                    value="<?php echo $selected_harga; ?>">
+                                <input type="hidden" name="variant_label" id="formVariantLabel"
+                                    value="<?php echo $varians[0]['ram']; ?>/<?php echo $varians[0]['rom']; ?>">
+                                <button type="submit" name="add_to_cart" class="btn btn-primary" <?php echo $produk['stok'] <= 0 ? 'disabled' : ''; ?>>
                                     <i class="fas fa-cart-plus"></i> Tambah ke Keranjang
                                 </button>
                             </form>
-                            <a href="checkout.php?id=<?php echo $product_id; ?>" class="btn btn-outline" <?php echo $produk['stok'] <= 0 ? 'style="display:none"' : ''; ?>>
+                            <a href="checkout.php?product_id=<?php echo $product_id; ?>&qty=1&variant_price=<?php echo $selected_harga; ?>&variant_label=<?php echo $varians[0]['ram']; ?>/<?php echo $varians[0]['rom']; ?>"
+                                class="btn btn-outline" <?php echo $produk['stok'] <= 0 ? 'style="display:none"' : ''; ?>>
                                 <i class="fas fa-bolt"></i> Beli Sekarang
                             </a>
                         <?php else: ?>
-                            <a href="../auth/login.php" class="btn btn-disabled" style="flex: 1;">
+                            <a href="../auth/login.php" class="btn btn-primary"
+                                style="flex: 1; background: #e5e7eb; color: #9ca3af; cursor: not-allowed;">
                                 <i class="fas fa-lock"></i> Login untuk Membeli
                             </a>
                         <?php endif; ?>
@@ -515,23 +575,64 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $is_logged_in) {
     </footer>
 
     <script>
+        let currentUnitPrice = <?php echo $selected_harga; ?>;
+
+        // 1. Fungsi Update Harga Satuan & Total
+        function updatePrice(harga, btnElement) {
+            currentUnitPrice = harga;
+
+            // Update text harga satuan
+            document.getElementById('unit-price').innerHTML = 'Rp ' + harga.toLocaleString('id-ID');
+
+            // Update hidden input untuk form
+            document.getElementById('formVariantPrice').value = harga;
+
+            // Update link Beli Sekarang
+            const currentQty = document.getElementById('qtyInput').value;
+            const variantLabel = btnElement.textContent.trim();
+            const checkoutLink = document.querySelector('.btn-outline');
+            if (checkoutLink) {
+                checkoutLink.href = `checkout.php?product_id=<?php echo $product_id; ?>&qty=${currentQty}&variant_price=${harga}&variant_label=${encodeURIComponent(variantLabel)}`;
+            }
+
+            // Update class active di tombol
+            const buttons = document.querySelectorAll('.variant-btn');
+            buttons.forEach(btn => btn.classList.remove('active'));
+            btnElement.classList.add('active');
+
+            // Hitung ulang total
+            calculateTotal();
+        }
+
+        // 2. Fungsi Update Qty & Total
         function updateQty(change) {
             const input = document.getElementById('qtyInput');
             const formQty = document.getElementById('formQty');
             let newValue = parseInt(input.value) + change;
             const maxStock = <?php echo $produk['stok']; ?>;
+
             if (newValue < 1) newValue = 1;
             if (newValue > maxStock) newValue = maxStock;
+
             input.value = newValue;
             if (formQty) formQty.value = newValue;
+
+            // Update link Beli Sekarang
+            const variantBtn = document.querySelector('.variant-btn.active');
+            const variantLabel = variantBtn ? variantBtn.textContent.trim() : '';
+            const checkoutLink = document.querySelector('.btn-outline');
+            if (checkoutLink) {
+                checkoutLink.href = `checkout.php?product_id=<?php echo $product_id; ?>&qty=${newValue}&variant_price=${currentUnitPrice}&variant_label=${encodeURIComponent(variantLabel)}`;
+            }
+
+            calculateTotal();
         }
 
-        document.querySelectorAll('.variant-btn').forEach(btn => {
-            btn.addEventListener('click', function () {
-                document.querySelectorAll('.variant-btn').forEach(b => b.classList.remove('active'));
-                this.classList.add('active');
-            });
-        });
+        function calculateTotal() {
+            const qty = parseInt(document.getElementById('qtyInput').value) || 1;
+            const total = currentUnitPrice * qty;
+            document.getElementById('total-price').innerHTML = 'Rp ' + total.toLocaleString('id-ID');
+        }
     </script>
 </body>
 

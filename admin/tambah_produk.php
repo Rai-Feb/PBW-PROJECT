@@ -1,164 +1,257 @@
 <?php
 session_start();
-if (!isset($_SESSION['status_login']) || $_SESSION['role'] !== 'admin') {
-    header("Location: ../auth/login.php");
+require_once '../config/koneksi.php';
+
+if (!isset($_SESSION['user_id']) || $_SESSION['role'] != 'admin') {
+    header('Location: ../auth/login.php');
     exit;
 }
-include '../config/koneksi.php';
 
-$show_alert = false;
+$success = '';
+$error = '';
 
-if (isset($_POST['tambah'])) {
-    $nama = mysqli_real_escape_string($conn, $_POST['nama']);
-    $kategori = $_POST['kategori'];
-    $stok = $_POST['stok'];
-    $deskripsi = mysqli_real_escape_string($conn, $_POST['deskripsi']);
-    
-    $varian_data = array();
-    $harga_termurah = 9999999999;
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $nama_barang = trim($_POST['nama_barang']);
+    $kategori = trim($_POST['kategori']);
+    $stok = (int) $_POST['stok'];
+    $deskripsi = trim($_POST['deskripsi']);
+    $varian_json = trim($_POST['varian_json'] ?? '[]');
 
-    if (isset($_POST['varian_cek'])) {
-        foreach ($_POST['varian_cek'] as $v) {
-            $harga_v = $_POST['varian_harga'][$v];
-            $varian_data[$v] = $harga_v;
-            if ($harga_v < $harga_termurah) {
-                $harga_termurah = $harga_v;
+    $gambar = '';
+    if (isset($_FILES['gambar']) && $_FILES['gambar']['error'] == 0) {
+        $allowed = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
+        $ext = strtolower(pathinfo($_FILES['gambar']['name'], PATHINFO_EXTENSION));
+
+        if (in_array($ext, $allowed)) {
+            $new_filename = time() . '_' . uniqid() . '.' . $ext;
+            $upload_path = '../uploads/' . $new_filename;
+
+            if (!is_dir('../uploads')) {
+                mkdir('../uploads', 0777, true);
             }
+
+            if (move_uploaded_file($_FILES['gambar']['tmp_name'], $upload_path)) {
+                $gambar = $new_filename;
+            } else {
+                $error = "Gagal mengupload gambar.";
+            }
+        } else {
+            $error = "Format gambar tidak didukung.";
         }
     }
-    
-    $harga = ($harga_termurah == 9999999999) ? 0 : $harga_termurah;
-    $varian_json = json_encode($varian_data);
-    $nama_file = "default.jpg";
 
-    if ($_FILES['gambar']['name'] != '') {
-        $ext = pathinfo($_FILES['gambar']['name'], PATHINFO_EXTENSION);
-        $nama_file = time() . "_" . uniqid() . "." . $ext;
-        $tmp_file = $_FILES['gambar']['tmp_name'];
-        move_uploaded_file($tmp_file, "../assets/img/" . $nama_file);
-    }
+    if (empty($error)) {
+        $decoded = json_decode($varian_json, true);
+        if (json_last_error() !== JSON_ERROR_NONE || empty($decoded)) {
+            $error = "Minimal satu varian RAM/ROM harus diisi.";
+        } else {
+            $harga_min = min(array_column($decoded, 'harga'));
+            $harga_max = max(array_column($decoded, 'harga'));
 
-    $insert = mysqli_query($conn, "INSERT INTO products (nama_barang, kategori, harga, stok, deskripsi, varian, gambar) VALUES ('$nama', '$kategori', '$harga', '$stok', '$deskripsi', '$varian_json', '$nama_file')");
+            $stmt = mysqli_prepare($conn, "INSERT INTO products (nama_barang, kategori, harga_min, harga_max, stok, deskripsi, gambar, varian, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())");
+            mysqli_stmt_bind_param($stmt, "ssiiisss", $nama_barang, $kategori, $harga_min, $harga_max, $stok, $deskripsi, $gambar, $varian_json);
 
-    if ($insert) {
-        $show_alert = true;
+            if (mysqli_stmt_execute($stmt)) {
+                header('Location: produk.php');
+                exit;
+            } else {
+                $error = "Gagal menambahkan produk.";
+            }
+        }
     }
 }
+
+$page_title = 'Tambah Produk';
+include 'layout_header.php';
 ?>
-<!DOCTYPE html>
-<html lang="id">
-<head>
-    <meta charset="UTF-8">
-    <title>Tambah Produk - ACE Admin</title>
-    <link href="https://fonts.googleapis.com/css2?family=Open+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-    <style>
-        :root { --tk-green: #03AC0E; --tk-green-light: #E2F5ED; --tk-text: #31353B; --tk-text-muted: #8D96AA; --tk-border: #E5E7E9; --tk-surface: #F3F4F5; }
-        body { background: var(--tk-surface); font-family: 'Open Sans', sans-serif; color: var(--tk-text); display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 40px 0; }
-        .form-card { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 1px 6px rgba(0,0,0,0.1); width: 100%; max-width: 600px; }
-        .input-group { margin-bottom: 24px; }
-        .input-group label { display: block; font-size: 13px; font-weight: 700; margin-bottom: 8px; }
-        .input-group input[type="text"], .input-group input[type="number"], .input-group select, .input-group textarea { width: 100%; padding: 12px 16px; border: 1px solid var(--tk-border); border-radius: 8px; font-size: 14px; outline: none; font-family: inherit; }
-        .input-group input:focus, .input-group select:focus, .input-group textarea:focus { border-color: var(--tk-green); }
-        .file-upload-wrapper { border: 2px dashed var(--tk-border); padding: 20px; border-radius: 8px; text-align: center; background: #FAFAFA; cursor: pointer; position: relative; }
-        .file-upload-wrapper input[type="file"] { opacity: 0; position: absolute; top: 0; left: 0; width: 100%; height: 100%; cursor: pointer; }
-        .variant-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
-        .variant-card { border: 1px solid var(--tk-border); border-radius: 8px; padding: 8px; transition: 0.2s; }
-        .variant-label { cursor: pointer; display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; }
-        .price-input { display: none; margin-top: 8px; width: 100%; padding: 8px !important; font-size: 12px !important; }
-        .btn-wrapper { display: flex; gap: 16px; margin-top: 32px; }
-        .btn { flex: 1; padding: 14px; border-radius: 8px; font-weight: 700; font-size: 14px; text-align: center; text-decoration: none; border: none; cursor: pointer; }
-        .btn-primary { background: var(--tk-green); color: white; }
-        .btn-secondary { background: white; color: var(--tk-text); border: 1px solid var(--tk-border); }
-    </style>
-</head>
-<body>
-    <?php if ($show_alert): ?>
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            Swal.fire({ title: 'Berhasil!', text: 'Produk sukses ditambahkan.', icon: 'success', confirmButtonColor: '#03AC0E', allowOutsideClick: false })
-            .then((result) => { if (result.isConfirmed) window.location.href = 'produk.php'; });
-        });
-    </script>
+
+<div class="page-header">
+    <h1><i class="fas fa-plus-circle me-3"></i>Tambah Produk Baru</h1>
+    <p style="color: var(--gray); margin-top: 8px;">Lengkapi form di bawah untuk menambahkan produk</p>
+</div>
+
+<div class="content-card">
+    <?php if ($success): ?>
+        <div
+            style="padding: 16px 20px; border-radius: 12px; margin-bottom: 24px; background: #d1fae5; color: #065f46; border-left: 4px solid #10b981;">
+            <i class="fas fa-check-circle me-2"></i>
+            <?php echo $success; ?>
+        </div>
     <?php endif; ?>
 
-    <div class="form-card">
-        <h2 style="margin-bottom: 32px; font-weight: 800; font-size: 22px;">Tambah Produk HP</h2>
-        <form method="POST" enctype="multipart/form-data">
-            <div class="input-group">
-                <label>Foto Produk Utama</label>
-                <div class="file-upload-wrapper">
-                    <div style="font-weight: 700; color: var(--tk-green); margin-bottom: 4px;">Pilih Gambar Utama</div>
-                    <input type="file" name="gambar" accept="image/*">
-                </div>
+    <?php if ($error): ?>
+        <div
+            style="padding: 16px 20px; border-radius: 12px; margin-bottom: 24px; background: #fee2e2; color: #991b1b; border-left: 4px solid #ef4444;">
+            <i class="fas fa-exclamation-circle me-2"></i>
+            <?php echo $error; ?>
+        </div>
+    <?php endif; ?>
+
+    <form method="POST" enctype="multipart/form-data">
+        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 24px; margin-bottom: 24px;">
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; font-weight: 600; color: var(--dark);">Nama Produk
+                    <span style="color: #ef4444;">*</span></label>
+                <input type="text" name="nama_barang" class="form-control" placeholder="Contoh: Samsung Galaxy S25 FE"
+                    required
+                    style="width: 100%; padding: 14px 18px; border: 2px solid #e5e7eb; border-radius: 12px; font-size: 1rem;">
             </div>
-            <div class="input-group">
-                <label>Nama Produk</label>
-                <input type="text" name="nama" required>
+
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; font-weight: 600; color: var(--dark);">Kategori/Brand
+                    <span style="color: #ef4444;">*</span></label>
+                <select name="kategori" required
+                    style="width: 100%; padding: 14px 18px; border: 2px solid #e5e7eb; border-radius: 12px; font-size: 1rem;">
+                    <option value="">Pilih Kategori</option>
+                    <option value="Samsung">Samsung</option>
+                    <option value="iPhone">iPhone</option>
+                    <option value="Xiaomi">Xiaomi</option>
+                    <option value="Oppo">Oppo</option>
+                    <option value="Vivo">Vivo</option>
+                    <option value="Realme">Realme</option>
+                    <option value="Infinix">Infinix</option>
+                    <option value="iQOO">iQOO</option>
+                    <option value="Lainnya">Lainnya</option>
+                </select>
             </div>
-            <div style="display: flex; gap: 16px;">
-                <div class="input-group" style="flex: 1;">
-                    <label>Brand</label>
-                    <select name="kategori" required>
-                        <option value="Samsung">Samsung</option>
-                        <option value="iPhone">iPhone</option>
-                        <option value="Xiaomi">Xiaomi</option>
-                        <option value="Oppo">Oppo</option>
-                        <option value="Infinix">Infinix</option>
-                    </select>
-                </div>
-                <div class="input-group" style="flex: 1;">
-                    <label>Total Stok Gudang</label>
-                    <input type="number" name="stok" required>
-                </div>
+
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; font-weight: 600; color: var(--dark);">Stok Total
+                    <span style="color: #ef4444;">*</span></label>
+                <input type="number" name="stok" placeholder="50" min="0" required
+                    style="width: 100%; padding: 14px 18px; border: 2px solid #e5e7eb; border-radius: 12px; font-size: 1rem;">
             </div>
-            
-            <div class="input-group">
-                <label>Atur Varian RAM/ROM & Harga</label>
-                <div class="variant-grid">
-                    <?php 
-                    $opsi = ['2/16', '3/32', '4/64', '4/128', '6/128', '8/128', '8/256', '12/256', '12/512'];
-                    foreach($opsi as $index => $op): ?>
-                    <div class="variant-card" id="card_<?= $index ?>">
-                        <label class="variant-label">
-                            <input type="checkbox" name="varian_cek[]" value="<?= $op ?>" onchange="togglePrice(this, <?= $index ?>)">
-                            <?= $op ?> GB
-                        </label>
-                        <input type="number" name="varian_harga[<?= $op ?>]" id="harga_<?= $index ?>" class="price-input" placeholder="Rp...">
+
+            <div style="margin-bottom: 20px;">
+                <label style="display: block; margin-bottom: 8px; font-weight: 600; color: var(--dark);">Upload Gambar
+                    <span style="color: #ef4444;">*</span></label>
+                <input type="file" name="gambar" accept="image/*" required
+                    style="width: 100%; padding: 14px 18px; border: 2px solid #e5e7eb; border-radius: 12px; font-size: 1rem;">
+            </div>
+
+            <div style="margin-bottom: 20px; grid-column: 1 / -1;">
+                <label style="display: block; margin-bottom: 8px; font-weight: 600; color: var(--dark);">Deskripsi
+                    Produk</label>
+                <textarea name="deskripsi" placeholder="Jelaskan spesifikasi, fitur, dan keunggulan produk..." rows="4"
+                    style="width: 100%; padding: 14px 18px; border: 2px solid #e5e7eb; border-radius: 12px; font-size: 1rem; min-height: 120px; resize: vertical;"></textarea>
+            </div>
+
+            <div style="margin-bottom: 20px; grid-column: 1 / -1;">
+                <div style="background: var(--cream); padding: 24px; border-radius: 16px; border: 1px solid #e5e7eb;">
+                    <div
+                        style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <label style="font-weight: 600; color: var(--dark); font-size: 1rem;">Varian RAM/ROM & Harga
+                            <span style="color: #ef4444;">*</span></label>
+                        <span style="font-size: 0.85rem; color: var(--gray);">Minimal 1 varian</span>
                     </div>
-                    <?php endforeach; ?>
+
+                    <div
+                        style="display: grid; grid-template-columns: repeat(3, 1fr) 60px; gap: 12px; margin-bottom: 16px; font-weight: 700; color: var(--dark); font-size: 0.9rem;">
+                        <span>RAM (GB)</span>
+                        <span>ROM (GB)</span>
+                        <span>Harga (Rp)</span>
+                        <span></span>
+                    </div>
+
+                    <div id="variant-container"></div>
+
+                    <button type="button" id="add-variant-btn"
+                        style="background: white; color: var(--gold-primary); border: 2px dashed var(--gold-primary); padding: 12px; border-radius: 12px; cursor: pointer; font-weight: 600; width: 100%; margin-top: 12px; transition: all 0.3s;">
+                        <i class="fas fa-plus me-2"></i> Tambah Varian
+                    </button>
                 </div>
+                <input type="hidden" name="varian_json" id="varian-json-input">
             </div>
+        </div>
 
-            <div class="input-group">
-                <label>Spesifikasi Lengkap</label>
-                <textarea name="deskripsi" rows="4" required></textarea>
-            </div>
-            
-            <div class="btn-wrapper">
-                <a href="produk.php" class="btn btn-secondary">Batal</a>
-                <button type="submit" name="tambah" class="btn btn-primary">Publikasikan</button>
-            </div>
-        </form>
-    </div>
+        <div style="display: flex; gap: 16px; margin-top: 32px; padding-top: 24px; border-top: 2px solid #f3f4f6;">
+            <button type="submit" class="btn btn-primary" style="flex: 2;">
+                <i class="fas fa-save"></i> Simpan Produk
+            </button>
+            <a href="produk.php" class="btn btn-secondary"
+                style="flex: 1; background: white; color: var(--dark); border: 2px solid #e5e7eb; text-align: center;">
+                <i class="fas fa-times"></i> Batal
+            </a>
+        </div>
+    </form>
+</div>
 
-    <script>
-        function togglePrice(checkbox, index) {
-            const input = document.getElementById('harga_' + index);
-            const card = document.getElementById('card_' + index);
-            if(checkbox.checked) {
-                input.style.display = 'block';
-                input.required = true;
-                card.style.borderColor = 'var(--tk-green)';
-                card.style.backgroundColor = 'var(--tk-green-light)';
-            } else {
-                input.style.display = 'none';
-                input.required = false;
-                input.value = '';
-                card.style.borderColor = 'var(--tk-border)';
-                card.style.backgroundColor = 'transparent';
-            }
+<script>
+    const container = document.getElementById('variant-container');
+    const addBtn = document.getElementById('add-variant-btn');
+    const hiddenInput = document.getElementById('varian-json-input');
+    let variantCount = 0;
+
+    function createVariantRow() {
+        variantCount++;
+        const row = document.createElement('div');
+        row.className = 'variant-row';
+        row.style.cssText = 'display: grid; grid-template-columns: repeat(3, 1fr) 60px; gap: 12px; margin-bottom: 12px; background: white; padding: 12px; border-radius: 10px; border: 1px solid #e5e7eb; animation: fadeIn 0.3s ease;';
+        row.innerHTML = `
+        <input type="text" class="v-ram" placeholder="8" required style="padding: 10px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 0.95rem;">
+        <input type="text" class="v-rom" placeholder="256" required style="padding: 10px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 0.95rem;">
+        <input type="number" class="v-harga" placeholder="7000000" min="0" required style="padding: 10px; border: 2px solid #e5e7eb; border-radius: 8px; font-size: 0.95rem;">
+        <button type="button" class="btn-remove" onclick="removeVariant(this)" style="background: #fee2e2; color: #ef4444; border: none; width: 40px; height: 40px; border-radius: 10px; cursor: pointer; transition: all 0.3s;">
+            <i class="fas fa-trash"></i>
+        </button>
+    `;
+        container.appendChild(row);
+        syncVariants();
+    }
+
+    function removeVariant(btn) {
+        if (container.children.length > 1) {
+            btn.closest('.variant-row').remove();
+            syncVariants();
+        } else {
+            alert('Minimal harus ada 1 varian!');
         }
-    </script>
+    }
+
+    function syncVariants() {
+        const rows = document.querySelectorAll('.variant-row');
+        const variants = [];
+        rows.forEach(row => {
+            variants.push({
+                ram: row.querySelector('.v-ram').value || '0',
+                rom: row.querySelector('.v-rom').value || '0',
+                harga: parseInt(row.querySelector('.v-harga').value) || 0
+            });
+        });
+        hiddenInput.value = JSON.stringify(variants);
+    }
+
+    container.addEventListener('input', syncVariants);
+    addBtn.addEventListener('click', createVariantRow);
+
+    createVariantRow();
+</script>
+
+<style>
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(-10px);
+        }
+
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .btn-remove:hover {
+        background: #ef4444;
+        color: white;
+    }
+
+    .btn-secondary:hover {
+        background: var(--cream);
+        border-color: var(--gold-primary);
+    }
+</style>
+
+</main>
 </body>
+
 </html>
