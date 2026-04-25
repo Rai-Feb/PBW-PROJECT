@@ -1,0 +1,7 @@
+{
+  "name": "rai/7cellectronic",
+  "description": "E-Commerce Project UAS PBW",
+  "require": {
+    "phpmailer/phpmailer": "^6.8"
+  }
+}
