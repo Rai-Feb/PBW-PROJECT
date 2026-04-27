@@ -46,6 +46,14 @@ if ($user_query) {
     $user_data = mysqli_fetch_assoc($user_query);
     $user_email = $user_data['email'] ?? '';
 }
+
+$mockup_images = [
+    'https://images.unsplash.com/photo-1592899677712-a5a254503381?w=400&h=400&fit=crop',
+    'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=400&h=400&fit=crop',
+    'https://images.unsplash.com/photo-1580910051074-3eb694886505?w=400&h=400&fit=crop',
+    'https://images.unsplash.com/photo-1567581935884-3349723552ca?w=400&h=400&fit=crop',
+    'https://images.unsplash.com/photo-1512054502232-120bbc5a0d32?w=400&h=400&fit=crop'
+];
 ?>
 <!DOCTYPE html>
 <html lang="id">
@@ -53,10 +61,13 @@ if ($user_query) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>7Cellectronic - Premium Smartphone Store</title>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+    <title>7CellX - Premium Smartphone Store</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&display=swap"
         rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <style>
         :root {
             --gold-primary: #d4af37;
@@ -71,7 +82,7 @@ if ($user_query) {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-family: 'Montserrat', sans-serif;
         }
 
         body {
@@ -82,9 +93,6 @@ if ($user_query) {
             background: white;
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
             padding: 16px 0;
-            position: sticky;
-            top: 0;
-            z-index: 1000;
         }
 
         .container {
@@ -96,12 +104,11 @@ if ($user_query) {
         .navbar-content {
             display: flex;
             align-items: center;
-            justify-content: space-between;
         }
 
         .navbar-brand {
             font-size: 1.8rem;
-            font-weight: 800;
+            font-weight: 900;
             background: linear-gradient(135deg, var(--gold-primary), var(--gold-dark));
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
@@ -111,10 +118,18 @@ if ($user_query) {
             gap: 10px;
         }
 
+        .nav-right {
+            display: flex;
+            align-items: center;
+            gap: 32px;
+            margin-left: auto;
+        }
+
         .nav-menu {
             display: flex;
-            gap: 32px;
+            gap: 24px;
             list-style: none;
+            align-items: center;
         }
 
         .nav-menu a {
@@ -132,8 +147,11 @@ if ($user_query) {
             color: var(--gold-primary);
         }
 
-        .user-info {
-            text-align: right;
+        .user-section {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 4px;
             padding-left: 24px;
             border-left: 2px solid #e5e7eb;
         }
@@ -141,19 +159,24 @@ if ($user_query) {
         .user-email {
             font-size: 0.85rem;
             color: var(--gray);
-            margin-bottom: 4px;
+            font-weight: 500;
         }
 
         .logout-link {
             color: var(--gold-primary);
             text-decoration: none;
             font-weight: 700;
+            font-size: 0.9rem;
             display: flex;
             align-items: center;
             gap: 6px;
         }
 
-        .hero-banner {
+        .logout-link:hover {
+            color: var(--gold-dark);
+        }
+
+        .hero {
             background: linear-gradient(135deg, var(--gold-light) 0%, var(--cream) 100%);
             padding: 80px 0;
             margin-bottom: 50px;
@@ -161,7 +184,7 @@ if ($user_query) {
             overflow: hidden;
         }
 
-        .hero-banner::before {
+        .hero::before {
             content: '';
             position: absolute;
             top: -100px;
@@ -183,16 +206,14 @@ if ($user_query) {
 
         .hero-text h1 {
             font-size: 3rem;
-            font-weight: 800;
+            font-weight: 900;
             color: var(--dark);
             margin-bottom: 20px;
             line-height: 1.2;
         }
 
         .hero-text h1 span {
-            background: linear-gradient(135deg, var(--gold-primary), var(--gold-dark));
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+            color: var(--gold-primary);
         }
 
         .hero-text p {
@@ -202,8 +223,31 @@ if ($user_query) {
             line-height: 1.6;
         }
 
+        .btn-primary {
+            background: linear-gradient(135deg, var(--gold-primary), var(--gold-dark));
+            color: white;
+            border: none;
+            padding: 14px 32px;
+            border-radius: 12px;
+            font-weight: 700;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            transition: all 0.3s;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 30px rgba(212, 175, 55, 0.4);
+        }
+
         .hero-image {
             text-align: center;
+            min-height: 300px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
         .hero-image img {
@@ -270,37 +314,9 @@ if ($user_query) {
 
         .products-grid {
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
             gap: 32px;
             margin-bottom: 80px;
-        }
-
-        @media (min-width: 1600px) {
-            .products-grid {
-                grid-template-columns: repeat(5, 1fr);
-            }
-        }
-
-        @media (max-width: 1400px) {
-            .products-grid {
-                grid-template-columns: repeat(3, 1fr);
-            }
-        }
-
-        @media (max-width: 1024px) {
-            .products-grid {
-                grid-template-columns: repeat(2, 1fr);
-            }
-
-            .hero-content {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        @media (max-width: 640px) {
-            .products-grid {
-                grid-template-columns: 1fr;
-            }
         }
 
         .product-card {
@@ -319,19 +335,21 @@ if ($user_query) {
 
         .product-image-wrapper {
             position: relative;
-            height: 260px;
+            height: 300px;
             background: linear-gradient(135deg, #faf8f3 0%, #f0ebe3 100%);
             overflow: hidden;
             display: flex;
             align-items: center;
             justify-content: center;
+            padding: 30px;
         }
 
         .product-image {
-            max-width: 85%;
-            max-height: 85%;
+            max-width: 100%;
+            max-height: 100%;
             object-fit: contain;
             transition: transform 0.4s;
+            border-radius: 16px;
         }
 
         .product-card:hover .product-image {
@@ -390,53 +408,33 @@ if ($user_query) {
 
         .product-price {
             font-size: 1.6rem;
-            font-weight: 800;
+            font-weight: 900;
             background: linear-gradient(135deg, var(--gold-primary), var(--gold-dark));
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             margin-bottom: 20px;
         }
 
-        .product-actions {
-            display: flex;
-            gap: 10px;
-        }
-
-        .btn {
+        .btn-detail {
+            width: 100%;
             padding: 12px 20px;
+            background: linear-gradient(135deg, var(--gold-primary), var(--gold-dark));
+            color: white;
             border: none;
             border-radius: 12px;
-            font-weight: 600;
+            font-weight: 700;
             cursor: pointer;
             transition: all 0.3s;
-            text-decoration: none;
             display: inline-flex;
             align-items: center;
             justify-content: center;
             gap: 8px;
-            font-size: 0.9rem;
-            flex: 1;
+            text-decoration: none;
         }
 
-        .btn-primary {
-            background: linear-gradient(135deg, var(--gold-primary), var(--gold-dark));
-            color: white;
-        }
-
-        .btn-primary:hover {
+        .btn-detail:hover {
             transform: translateY(-2px);
             box-shadow: 0 8px 25px rgba(212, 175, 55, 0.4);
-        }
-
-        .btn-outline {
-            background: white;
-            color: var(--gold-primary);
-            border: 2px solid var(--gold-primary);
-        }
-
-        .btn-outline:hover {
-            background: var(--gold-primary);
-            color: white;
         }
 
         .empty-state {
@@ -464,7 +462,7 @@ if ($user_query) {
 
         .footer-brand {
             font-size: 1.8rem;
-            font-weight: 800;
+            font-weight: 900;
             margin-bottom: 12px;
             display: flex;
             align-items: center;
@@ -474,6 +472,42 @@ if ($user_query) {
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
+
+        @media (max-width: 1024px) {
+            .hero-content {
+                grid-template-columns: 1fr;
+            }
+
+            .products-grid {
+                grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+                gap: 20px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .navbar-content {
+                flex-direction: column;
+                gap: 16px;
+            }
+
+            .nav-right {
+                flex-direction: column;
+                gap: 16px;
+                margin-left: 0;
+                width: 100%;
+                justify-content: center;
+            }
+
+            .user-section {
+                border-left: none;
+                padding-left: 0;
+                align-items: center;
+            }
+
+            .hero-text h1 {
+                font-size: 2rem;
+            }
+        }
     </style>
 </head>
 
@@ -482,41 +516,43 @@ if ($user_query) {
         <div class="container">
             <div class="navbar-content">
                 <a href="katalog.php" class="navbar-brand">
-                    <i class="fas fa-bolt"></i>
-                    7Cellectronic
+                    <i class="bi bi-lightning-charge-fill"></i>
+                    7CellX
                 </a>
-                <ul class="nav-menu">
-                    <li><a href="keranjang.php"><i class="fas fa-shopping-cart"></i> Keranjang</a></li>
-                    <li><a href="pesanan.php"><i class="fas fa-box"></i> Pesanan</a></li>
-                    <li><a href="chat.php"><i class="fas fa-comments"></i> Chat Support</a></li>
-                </ul>
-                <div class="user-info">
-                    <div class="user-email">
-                        <?php echo htmlspecialchars($user_email); ?>
+                <div class="nav-right">
+                    <ul class="nav-menu">
+                        <li><a href="keranjang.php"><i class="bi bi-cart"></i> Keranjang</a></li>
+                        <li><a href="pesanan.php"><i class="bi bi-box"></i> Pesanan</a></li>
+                        <li><a href="chat.php"><i class="bi bi-chat-dots"></i> Chat Support</a></li>
+                    </ul>
+                    <div class="user-section">
+                        <div class="user-email">
+                            <?php echo htmlspecialchars($user_email); ?>
+                        </div>
+                        <a href="../auth/logout.php" class="logout-link">
+                            <i class="bi bi-box-arrow-right"></i> Logout
+                        </a>
                     </div>
-                    <a href="../auth/logout.php" class="logout-link">
-                        <i class="fas fa-sign-out-alt"></i> Logout
-                    </a>
                 </div>
             </div>
         </div>
     </nav>
 
-    <section class="hero-banner">
+    <section class="hero">
         <div class="container">
             <div class="hero-content">
                 <div class="hero-text">
                     <h1>NEW SMARTPHONE <span>COMPARE MODELS</span></h1>
                     <p>Temukan smartphone premium dengan teknologi terbaru. Kualitas terbaik, harga kompetitif, dan
                         garansi resmi untuk kenyamanan Anda.</p>
-                    <a href="#products" class="btn btn-primary"
-                        style="padding: 16px 32px; font-size: 1rem; max-width: 250px;">
-                        <i class="fas fa-shopping-bag me-2"></i>Belanja Sekarang
+                    <a href="#products" class="btn-primary">
+                        <i class="bi bi-bag"></i> Belanja Sekarang
                     </a>
                 </div>
                 <div class="hero-image">
-                    <img src="https://images.unsplash.com/photo-1592899677712-a5a254503381?w=600&h=400&fit=crop"
-                        alt="Smartphone">
+                    <img src="https://images.unsplash.com/photo-1592899677712-a5a254503381?w=600&h=400&fit=crop&q=80"
+                        alt="Smartphone Premium"
+                        onerror="this.onerror=null; this.src='https://placehold.co/600x400/f4e5c2/d4af37?text=7CellX+Premium+Phones';">
                 </div>
             </div>
         </div>
@@ -525,7 +561,7 @@ if ($user_query) {
     <div class="container">
         <div class="search-section">
             <div class="search-wrapper">
-                <i class="fas fa-search"></i>
+                <i class="bi bi-search"></i>
                 <input type="text" class="search-input" placeholder="Cari smartphone, tablet, atau aksesoris..."
                     value="<?php echo htmlspecialchars($search); ?>"
                     onchange="window.location='?q='+this.value+'&sort=<?php echo $sort; ?>'">
@@ -540,31 +576,35 @@ if ($user_query) {
 
         <?php if (empty($products)): ?>
             <div class="empty-state">
-                <i class="fas fa-search"></i>
+                <i class="bi bi-search"></i>
                 <h3>Produk tidak ditemukan</h3>
                 <p style="color: var(--gray); margin: 12px 0 28px;">Coba gunakan kata kunci pencarian yang berbeda</p>
-                <a href="katalog.php" class="btn btn-primary">Lihat Semua Produk</a>
+                <a href="katalog.php" class="btn-primary">Lihat Semua Produk</a>
             </div>
         <?php else: ?>
             <div class="products-grid" id="products">
-                <?php foreach ($products as $produk):
+                <?php
+                $mockup_index = 0;
+                foreach ($products as $produk):
                     $gambar = '';
                     if (!empty($produk['gambar'])) {
                         $full_path = __DIR__ . '/../uploads/' . $produk['gambar'];
                         if (file_exists($full_path)) {
                             $gambar = '../uploads/' . $produk['gambar'];
                         } else {
-                            $gambar = 'https://images.unsplash.com/photo-1592899677712-a5a254503381?w=400&h=300&fit=crop';
+                            $gambar = $mockup_images[$mockup_index % count($mockup_images)];
                         }
                     } else {
-                        $gambar = 'https://images.unsplash.com/photo-1592899677712-a5a254503381?w=400&h=300&fit=crop';
+                        $gambar = $mockup_images[$mockup_index % count($mockup_images)];
                     }
+                    $mockup_index++;
                     $harga = $produk['harga_min'] ?? $produk['harga'] ?? 0;
                     ?>
                     <div class="product-card">
                         <div class="product-image-wrapper">
                             <img src="<?php echo htmlspecialchars($gambar); ?>"
-                                alt="<?php echo htmlspecialchars($produk['nama_barang']); ?>" class="product-image">
+                                alt="<?php echo htmlspecialchars($produk['nama_barang']); ?>" class="product-image"
+                                onerror="this.onerror=null; this.src='https://placehold.co/400x400/f4e5c2/d4af37?text=7CellX';">
                             <?php if ($produk['stok'] <= 0): ?>
                                 <span class="badge-stock badge-danger">Stok Habis</span>
                             <?php elseif ($produk['stok'] <= 5): ?>
@@ -585,15 +625,9 @@ if ($user_query) {
                             <div class="product-price">Rp
                                 <?php echo number_format($harga, 0, ',', '.'); ?>
                             </div>
-                            <div class="product-actions">
-                                <a href="detail.php?id=<?php echo $produk['id']; ?>" class="btn btn-primary">
-                                    <i class="fas fa-eye"></i> Detail
-                                </a>
-                                <button class="btn btn-outline"
-                                    onclick="alert('Silakan klik Detail untuk menambah ke keranjang')">
-                                    <i class="fas fa-cart-plus"></i>
-                                </button>
-                            </div>
+                            <a href="detail.php?id=<?php echo $produk['id']; ?>" class="btn-detail">
+                                <i class="bi bi-eye"></i> Detail
+                            </a>
                         </div>
                     </div>
                 <?php endforeach; ?>
@@ -604,8 +638,8 @@ if ($user_query) {
     <footer class="footer">
         <div class="container">
             <div class="footer-brand">
-                <i class="fas fa-bolt"></i>
-                7Cellectronic
+                <i class="bi bi-lightning-charge-fill"></i>
+                7CellX
             </div>
             <p style="opacity: 0.8;">Premium Smartphone Store - Kualitas Terbaik untuk Anda</p>
             <p style="margin-top: 16px; opacity: 0.6;">© 2024 - Project UAS PBW</p>
