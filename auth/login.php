@@ -15,7 +15,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = trim($_POST['email']);
     $password = $_POST['password'];
 
-    if ($email === 'admin@gmail.com' && $password === '123') {
+    if ($email === 'admin@7cellx.com' && $password === '123') {
         $_SESSION['user_id'] = 1;
         $_SESSION['nama'] = 'Administrator';
         $_SESSION['role'] = 'admin';
@@ -28,18 +28,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     mysqli_stmt_execute($stmt);
     $user = mysqli_fetch_assoc(mysqli_stmt_get_result($stmt));
 
-    if ($user && password_verify($password, $user['password'])) {
+        if ($user && password_verify($password, $user['password'])) {
         $_SESSION['user_id'] = $user['id'];
         $_SESSION['nama'] = $user['nama'];
+        $_SESSION['username'] = $user['username'] ?? $user['nama'];
+        $_SESSION['profile_picture'] = $user['profile_picture'] ?? '';
         $_SESSION['role'] = $user['role'];
-
+        
         if ($user['role'] == 'admin') {
             header('Location: ../admin/index.php');
         } else {
             header('Location: ../customer/katalog.php');
         }
         exit;
-    } else {
+    }
         $error = "Email atau password salah!";
     }
 }
@@ -50,10 +52,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Login - 7Cellectronic</title>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+    <title>Login - 7CellX</title>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800&display=swap"
         rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <style>
         :root {
             --gold-primary: #d4af37;
@@ -61,13 +64,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             --gold-dark: #aa8c2c;
             --cream: #faf8f3;
             --dark: #1a1a1a;
+            --gray: #6b7280;
         }
 
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-family: 'Montserrat', sans-serif;
         }
 
         body {
@@ -95,56 +99,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         .login-header h1 {
             font-size: 2.2rem;
-            font-weight: 800;
+            font-weight: 900;
             background: linear-gradient(135deg, var(--gold-primary), var(--gold-dark));
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             margin-bottom: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 12px;
         }
 
         .login-header p {
-            color: #6b7280;
-            font-size: 0.95rem;
-        }
-
-        .form-group {
-            margin-bottom: 24px;
+            color: var(--gray);
         }
 
         .form-label {
             display: block;
-            margin-bottom: 10px;
+            margin-bottom: 8px;
             font-weight: 600;
             color: var(--dark);
-            font-size: 0.9rem;
         }
 
-        .input-group {
-            position: relative;
-        }
-
-        .input-group i {
-            position: absolute;
-            left: 18px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: var(--gold-primary);
-        }
-
-        .input-group input {
-            padding: 16px 20px 16px 50px;
-            width: 100%;
+        .form-control {
+            padding: 14px 18px;
             border: 2px solid #e5e7eb;
-            border-radius: 14px;
+            border-radius: 12px;
             font-size: 1rem;
-            transition: all 0.3s;
         }
 
-        .input-group input:focus {
+        .form-control:focus {
             outline: none;
             border-color: var(--gold-primary);
             box-shadow: 0 0 0 4px rgba(212, 175, 55, 0.1);
@@ -161,28 +141,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             font-weight: 700;
             cursor: pointer;
             transition: all 0.3s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
         }
 
         .btn-login:hover {
             transform: translateY(-2px);
             box-shadow: 0 10px 30px rgba(212, 175, 55, 0.4);
-        }
-
-        .login-footer {
-            text-align: center;
-            margin-top: 28px;
-            color: #6b7280;
-            font-size: 0.9rem;
-        }
-
-        .login-footer a {
-            color: var(--gold-primary);
-            text-decoration: none;
-            font-weight: 700;
         }
 
         .alert {
@@ -192,7 +155,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             background: #fee2e2;
             color: #991b1b;
             border-left: 4px solid #ef4444;
-            font-size: 0.9rem;
         }
     </style>
 </head>
@@ -200,7 +162,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <body>
     <div class="login-box">
         <div class="login-header">
-            <h1><i class="fas fa-bolt"></i> 7Cellectronic</h1>
+            <h1><i class="bi bi-lightning-charge-fill me-2"></i>7CellX</h1>
             <p>Silakan login untuk melanjutkan</p>
         </div>
 
@@ -211,30 +173,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <?php endif; ?>
 
         <form method="POST">
-            <div class="form-group">
+            <div class="mb-3">
                 <label class="form-label">Email</label>
-                <div class="input-group">
-                    <i class="fas fa-envelope"></i>
-                    <input type="email" name="email" placeholder="nama@email.com" required>
-                </div>
+                <input type="email" name="email" class="form-control" placeholder="nama@email.com" required>
             </div>
-
-            <div class="form-group">
+            <div class="mb-3">
                 <label class="form-label">Password</label>
-                <div class="input-group">
-                    <i class="fas fa-lock"></i>
-                    <input type="password" name="password" placeholder="••••••••" required>
-                </div>
+                <input type="password" name="password" class="form-control" placeholder="••••••••" required>
             </div>
-
             <button type="submit" class="btn-login">
-                <i class="fas fa-sign-in-alt"></i> Login
+                <i class="bi bi-box-arrow-in-right me-2"></i>Login
             </button>
         </form>
-
-        <div class="login-footer">
-            <p>Belum punya akun? <a href="register.php">Daftar sekarang</a></p>
-        </div>
     </div>
 </body>
 

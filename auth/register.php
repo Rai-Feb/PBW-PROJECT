@@ -16,15 +16,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($password !== $confirm_password) {
         $error = "Password tidak cocok!";
     } else {
-        $hashed_password = password_hash($password, PASSWORD_DEFAULT);
-        $stmt = mysqli_prepare($conn, "INSERT INTO users (nama, email, password, role) VALUES (?, ?, ?, 'customer')");
-        mysqli_stmt_bind_param($stmt, "sss", $nama, $email, $hashed_password);
-
-        if (mysqli_stmt_execute($stmt)) {
-            header('Location: login.php');
-            exit;
-        } else {
+        $check = mysqli_query($conn, "SELECT id FROM users WHERE email = '" . mysqli_real_escape_string($conn, $email) . "'");
+        if (mysqli_num_rows($check) > 0) {
             $error = "Email sudah terdaftar!";
+        } else {
+            $hashed_password = password_hash($password, PASSWORD_DEFAULT);
+            $stmt = mysqli_prepare($conn, "INSERT INTO users (nama, email, password, role) VALUES (?, ?, ?, 'customer')");
+            mysqli_stmt_bind_param($stmt, "sss", $nama, $email, $hashed_password);
+            if (mysqli_stmt_execute($stmt)) {
+                header('Location: login.php');
+                exit;
+            } else {
+                $error = "Gagal mendaftar. Silakan coba lagi.";
+            }
         }
     }
 }
@@ -35,16 +39,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Daftar - 7Cellectronic</title>
-    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap"
+    <title>Daftar - 7CellX</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap"
         rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <style>
+        :root {
+            --gold-primary: #d4af37;
+            --gold-light: #f4e5c2;
+            --gold-dark: #aa8c2c;
+            --cream: #faf8f3;
+            --dark: #1a1a1a;
+            --gray: #6b7280;
+        }
+
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            font-family: 'Poppins', sans-serif;
+            font-family: 'Montserrat', sans-serif;
         }
 
         body {
@@ -52,16 +68,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             display: flex;
             align-items: center;
             justify-content: center;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, var(--gold-light) 0%, var(--cream) 100%);
             padding: 20px;
         }
 
         .login-box {
             background: white;
-            border-radius: 20px;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            border-radius: 24px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
             width: 100%;
-            max-width: 450px;
+            max-width: 480px;
             padding: 50px 40px;
         }
 
@@ -71,107 +87,80 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         .login-header h1 {
-            font-size: 2rem;
-            font-weight: 700;
-            color: #1a1a2e;
-            margin-bottom: 10px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-        }
-
-        .login-header h1 i {
-            color: #00d4ff;
+            font-size: 2.2rem;
+            font-weight: 900;
+            background: linear-gradient(135deg, var(--gold-primary), var(--gold-dark));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 12px;
         }
 
         .login-header p {
-            color: #6b7280;
-            font-size: 0.95rem;
-        }
-
-        .form-group {
-            margin-bottom: 20px;
+            color: var(--gray);
         }
 
         .form-label {
             display: block;
             margin-bottom: 8px;
-            font-weight: 500;
-            color: #1a1a2e;
-            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--dark);
         }
 
-        .input-group {
-            position: relative;
-        }
-
-        .input-group i {
-            position: absolute;
-            left: 15px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: #6b7280;
-        }
-
-        .input-group input {
-            padding: 14px 20px 14px 45px;
-            width: 100%;
+        .form-control {
+            padding: 14px 18px;
             border: 2px solid #e5e7eb;
             border-radius: 12px;
             font-size: 1rem;
-            transition: all 0.3s;
         }
 
-        .input-group input:focus {
+        .form-control:focus {
             outline: none;
-            border-color: #00d4ff;
-            box-shadow: 0 0 0 4px rgba(0, 212, 255, 0.1);
+            border-color: var(--gold-primary);
+            box-shadow: 0 0 0 4px rgba(212, 175, 55, 0.1);
         }
 
         .btn-login {
             width: 100%;
-            padding: 15px;
-            background: linear-gradient(135deg, #00d4ff, #0099cc);
+            padding: 16px;
+            background: linear-gradient(135deg, var(--gold-primary), var(--gold-dark));
             color: white;
             border: none;
-            border-radius: 12px;
+            border-radius: 14px;
             font-size: 1rem;
-            font-weight: 600;
+            font-weight: 700;
             cursor: pointer;
             transition: all 0.3s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
         }
 
         .btn-login:hover {
             transform: translateY(-2px);
-            box-shadow: 0 10px 30px rgba(0, 212, 255, 0.4);
+            box-shadow: 0 10px 30px rgba(212, 175, 55, 0.4);
+        }
+
+        .alert {
+            padding: 16px 20px;
+            border-radius: 12px;
+            margin-bottom: 24px;
+            background: #fee2e2;
+            color: #991b1b;
+            border-left: 4px solid #ef4444;
         }
 
         .login-footer {
             text-align: center;
-            margin-top: 25px;
-            color: #6b7280;
+            margin-top: 28px;
+            color: var(--gray);
             font-size: 0.9rem;
         }
 
         .login-footer a {
-            color: #00d4ff;
+            color: var(--gold-primary);
             text-decoration: none;
-            font-weight: 600;
+            font-weight: 700;
         }
 
-        .alert {
-            padding: 14px 20px;
-            border-radius: 12px;
-            margin-bottom: 25px;
-            background: #fee2e2;
-            color: #991b1b;
-            border-left: 4px solid #ef4444;
-            font-size: 0.9rem;
+        .login-footer a:hover {
+            text-decoration: underline;
         }
     </style>
 </head>
@@ -179,7 +168,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <body>
     <div class="login-box">
         <div class="login-header">
-            <h1><i class="fas fa-bolt"></i> 7Cellectronic</h1>
+            <h1><i class="bi bi-lightning-charge-fill me-2"></i>7CellX</h1>
             <p>Buat akun baru untuk berbelanja</p>
         </div>
 
@@ -190,40 +179,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         <?php endif; ?>
 
         <form method="POST">
-            <div class="form-group">
+            <div class="mb-3">
                 <label class="form-label">Nama Lengkap</label>
-                <div class="input-group">
-                    <i class="fas fa-user"></i>
-                    <input type="text" name="nama" placeholder="Nama lengkap" required>
-                </div>
+                <input type="text" name="nama" class="form-control" placeholder="Nama lengkap" required>
             </div>
-
-            <div class="form-group">
+            <div class="mb-3">
                 <label class="form-label">Email</label>
-                <div class="input-group">
-                    <i class="fas fa-envelope"></i>
-                    <input type="email" name="email" placeholder="nama@email.com" required>
-                </div>
+                <input type="email" name="email" class="form-control" placeholder="nama@email.com" required>
             </div>
-
-            <div class="form-group">
+            <div class="mb-3">
                 <label class="form-label">Password</label>
-                <div class="input-group">
-                    <i class="fas fa-lock"></i>
-                    <input type="password" name="password" placeholder="Minimal 6 karakter" required>
-                </div>
+                <input type="password" name="password" class="form-control" placeholder="Minimal 6 karakter" required>
             </div>
-
-            <div class="form-group">
+            <div class="mb-4">
                 <label class="form-label">Konfirmasi Password</label>
-                <div class="input-group">
-                    <i class="fas fa-lock"></i>
-                    <input type="password" name="confirm_password" placeholder="Ulangi password" required>
-                </div>
+                <input type="password" name="confirm_password" class="form-control" placeholder="Ulangi password"
+                    required>
             </div>
-
             <button type="submit" class="btn-login">
-                <i class="fas fa-user-plus"></i> Daftar
+                <i class="bi bi-person-plus me-2"></i>Daftar
             </button>
         </form>
 

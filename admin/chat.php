@@ -1,12 +1,13 @@
 <?php
 session_start();
 require_once '../config/koneksi.php';
+
 if (!isset($_SESSION['user_id']) || $_SESSION['role'] != 'admin') {
     header('Location: ../auth/login.php');
     exit;
 }
 
-$customers = mysqli_query($conn, "SELECT DISTINCT u.id, u.nama, u.email FROM users u JOIN chats c ON u.id = c.user_id ORDER BY (SELECT MAX(created_at) FROM chats WHERE user_id = u.id) DESC");
+$customers = mysqli_query($conn, "SELECT DISTINCT u.id, u.nama, u.email, u.is_online, u.last_seen FROM users u JOIN chats c ON u.id = c.user_id WHERE u.role = 'customer' ORDER BY u.is_online DESC, (SELECT MAX(created_at) FROM chats WHERE user_id = u.id) DESC");
 $selected_id = (int) ($_GET['id'] ?? 0);
 ?>
 <!DOCTYPE html>
@@ -15,10 +16,13 @@ $selected_id = (int) ($_GET['id'] ?? 0);
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Chat - 7Cellectronic</title>
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
+    <title>Admin Chat - 7CellX</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap"
         rel="stylesheet">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
     <style>
         :root {
             --gold-primary: #d4af37;
@@ -33,7 +37,7 @@ $selected_id = (int) ($_GET['id'] ?? 0);
             margin: 0;
             padding: 0;
             box-sizing: border-box;
-            font-family: 'Plus Jakarta Sans', sans-serif;
+            font-family: 'Montserrat', sans-serif;
         }
 
         body {
@@ -53,12 +57,16 @@ $selected_id = (int) ($_GET['id'] ?? 0);
         .sidebar-header {
             padding: 20px;
             border-bottom: 1px solid #e5e7eb;
-            font-weight: 800;
+            font-weight: 900;
             font-size: 1.2rem;
             color: var(--dark);
             display: flex;
             align-items: center;
             gap: 10px;
+        }
+
+        .sidebar-header i {
+            color: var(--gold-primary);
         }
 
         .customer-list {
@@ -74,6 +82,7 @@ $selected_id = (int) ($_GET['id'] ?? 0);
             display: flex;
             align-items: center;
             gap: 12px;
+            text-decoration: none;
         }
 
         .customer-item:hover,
@@ -91,11 +100,24 @@ $selected_id = (int) ($_GET['id'] ?? 0);
             justify-content: center;
             color: var(--gold-dark);
             font-weight: 700;
+            position: relative;
+        }
+
+        .customer-avatar .online-dot {
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            width: 12px;
+            height: 12px;
+            background: #10b981;
+            border: 2px solid white;
+            border-radius: 50%;
         }
 
         .customer-info h4 {
             font-size: 0.95rem;
             color: var(--dark);
+            font-weight: 600;
         }
 
         .customer-info p {
@@ -117,6 +139,39 @@ $selected_id = (int) ($_GET['id'] ?? 0);
             display: flex;
             align-items: center;
             gap: 15px;
+        }
+
+        .chat-header .avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--gold-light);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--gold-dark);
+            font-weight: 700;
+        }
+
+        .chat-header h3 {
+            font-size: 1.1rem;
+            color: var(--dark);
+            font-weight: 700;
+        }
+
+        .chat-header .status {
+            font-size: 0.85rem;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .chat-header .status.online {
+            color: #10b981;
+        }
+
+        .chat-header .status.offline {
+            color: #ef4444;
         }
 
         .chat-messages {
@@ -188,6 +243,10 @@ $selected_id = (int) ($_GET['id'] ?? 0);
             cursor: pointer;
         }
 
+        .chat-input button:hover {
+            background: var(--gold-primary);
+        }
+
         .empty-state {
             display: flex;
             flex-direction: column;
@@ -196,12 +255,20 @@ $selected_id = (int) ($_GET['id'] ?? 0);
             height: 100%;
             color: var(--gray);
         }
+
+        .empty-state i {
+            font-size: 4rem;
+            color: #ddd;
+            margin-bottom: 15px;
+        }
     </style>
 </head>
 
 <body>
     <div class="sidebar">
-        <div class="sidebar-header"><i class="fas fa-comments" style="color: var(--gold-primary);"></i> Pesan Customer
+        <div class="sidebar-header">
+            <i class="bi bi-chat-dots"></i>
+            Pesan Customer
         </div>
         <div class="customer-list">
             <?php while ($c = mysqli_fetch_assoc($customers)): ?>
@@ -209,6 +276,9 @@ $selected_id = (int) ($_GET['id'] ?? 0);
                     class="customer-item <?php echo $selected_id == $c['id'] ? 'active' : ''; ?>">
                     <div class="customer-avatar">
                         <?php echo strtoupper(substr($c['nama'], 0, 1)); ?>
+                        <?php if ($c['is_online'] == 1): ?>
+                            <span class="online-dot"></span>
+                        <?php endif; ?>
                     </div>
                     <div class="customer-info">
                         <h4>
@@ -225,18 +295,20 @@ $selected_id = (int) ($_GET['id'] ?? 0);
 
     <div class="chat-area">
         <?php if ($selected_id > 0):
-            $cust = mysqli_fetch_assoc(mysqli_query($conn, "SELECT nama FROM users WHERE id = $selected_id"));
+            $cust = mysqli_fetch_assoc(mysqli_query($conn, "SELECT nama, is_online, last_seen FROM users WHERE id = $selected_id"));
             ?>
             <div class="chat-header">
-                <div class="customer-avatar">
+                <div class="avatar">
                     <?php echo strtoupper(substr($cust['nama'], 0, 1)); ?>
                 </div>
                 <div>
-                    <h3 style="font-size: 1.1rem; color: var(--dark);">
+                    <h3>
                         <?php echo htmlspecialchars($cust['nama']); ?>
                     </h3>
-                    <span style="font-size: 0.85rem; color: #10b981;"><i class="fas fa-circle"
-                            style="font-size: 0.5rem;"></i> Active</span>
+                    <span class="status <?php echo $cust['is_online'] == 1 ? 'online' : 'offline'; ?>" id="customerStatus">
+                        <i class="bi bi-circle-fill" style="font-size: 0.5rem;"></i>
+                        <?php echo $cust['is_online'] == 1 ? 'Online' : 'Offline'; ?>
+                    </span>
                 </div>
             </div>
 
@@ -248,7 +320,7 @@ $selected_id = (int) ($_GET['id'] ?? 0);
             </form>
         <?php else: ?>
             <div class="empty-state">
-                <i class="fas fa-inbox" style="font-size: 4rem; color: #ddd; margin-bottom: 15px;"></i>
+                <i class="bi bi-inbox"></i>
                 <h3>Pilih Customer</h3>
                 <p>Klik nama customer di sidebar untuk memulai chat</p>
             </div>
@@ -260,25 +332,57 @@ $selected_id = (int) ($_GET['id'] ?? 0);
             const chatMessages = document.getElementById('chatMessages');
             const chatForm = document.getElementById('chatForm');
             const msgInput = document.getElementById('msgInput');
+            const customerStatus = document.getElementById('customerStatus');
             const targetId = <?php echo $selected_id; ?>;
             let lastCount = 0;
+            let isActive = 1;
+
+            function formatTime(dateStr) {
+                const date = new Date(dateStr);
+                const options = {
+                    day: '2-digit',
+                    month: 'short',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                };
+                return date.toLocaleDateString('id-ID', options);
+            }
 
             function loadChat() {
-                fetch(`../chat_api.php?action=fetch&target_id=${targetId}`)
+                fetch('../chat_api.php?action=fetch&target_id=' + targetId)
                     .then(r => r.json())
                     .then(data => {
                         if (data.length !== lastCount) {
                             chatMessages.innerHTML = '';
                             data.forEach(msg => {
                                 const div = document.createElement('div');
-                                div.className = `message ${msg.sender_role}`;
-                                div.innerHTML = `${msg.message} <span class="time">${new Date(msg.created_at).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}</span>`;
+                                div.className = 'message ' + msg.sender_role;
+                                div.innerHTML = msg.message + '<span class="time">' + formatTime(msg.created_at) + '</span>';
                                 chatMessages.appendChild(div);
                             });
                             chatMessages.scrollTop = chatMessages.scrollHeight;
                             lastCount = data.length;
                         }
                     });
+            }
+
+            function checkCustomerStatus() {
+                fetch('../chat_api.php?action=check_status&target_id=' + targetId)
+                    .then(r => r.json())
+                    .then(data => {
+                        if (data.is_online == 1) {
+                            customerStatus.className = 'status online';
+                            customerStatus.innerHTML = '<i class="bi bi-circle-fill" style="font-size: 0.5rem;"></i> Online';
+                        } else {
+                            customerStatus.className = 'status offline';
+                            customerStatus.innerHTML = '<i class="bi bi-circle-fill" style="font-size: 0.5rem;"></i> Offline';
+                        }
+                    });
+            }
+
+            function updatePresence() {
+                fetch('../chat_api.php?action=status&active=' + isActive);
             }
 
             chatForm.addEventListener('submit', e => {
@@ -288,12 +392,28 @@ $selected_id = (int) ($_GET['id'] ?? 0);
                 fetch('../chat_api.php?action=send', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-                    body: `message=${encodeURIComponent(msg)}&target_id=${targetId}`
-                }).then(() => { msgInput.value = ''; loadChat(); });
+                    body: 'message=' + encodeURIComponent(msg) + '&target_id=' + targetId
+                }).then(() => {
+                    msgInput.value = '';
+                    loadChat();
+                });
+            });
+
+            document.addEventListener('visibilitychange', () => {
+                if (document.hidden) {
+                    isActive = 0;
+                } else {
+                    isActive = 1;
+                }
+                updatePresence();
             });
 
             loadChat();
+            checkCustomerStatus();
+            updatePresence();
             setInterval(loadChat, 3000);
+            setInterval(checkCustomerStatus, 5000);
+            setInterval(updatePresence, 10000);
         </script>
     <?php endif; ?>
 </body>

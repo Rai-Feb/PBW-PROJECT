@@ -40,19 +40,10 @@ mysqli_stmt_execute($stmt);
 $result = mysqli_stmt_get_result($stmt);
 $products = mysqli_fetch_all($result, MYSQLI_ASSOC);
 
-$user_email = '';
-$user_query = mysqli_query($conn, "SELECT email FROM users WHERE id = " . (int) $_SESSION['user_id']);
-if ($user_query) {
-    $user_data = mysqli_fetch_assoc($user_query);
-    $user_email = $user_data['email'] ?? '';
-}
-
 $mockup_images = [
+    'https://images.unsplash.com/photo-1556656793-02715d8dd6f5?w=400&h=400&fit=crop',
     'https://images.unsplash.com/photo-1592899677712-a5a254503381?w=400&h=400&fit=crop',
-    'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=400&h=400&fit=crop',
-    'https://images.unsplash.com/photo-1580910051074-3eb694886505?w=400&h=400&fit=crop',
-    'https://images.unsplash.com/photo-1567581935884-3349723552ca?w=400&h=400&fit=crop',
-    'https://images.unsplash.com/photo-1512054502232-120bbc5a0d32?w=400&h=400&fit=crop'
+    'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=400&h=400&fit=crop'
 ];
 ?>
 <!DOCTYPE html>
@@ -64,7 +55,7 @@ $mockup_images = [
     <title>7CellX - Premium Smartphone Store</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800;900&display=swap"
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700;800;900&display=swap"
         rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
@@ -121,13 +112,13 @@ $mockup_images = [
         .nav-right {
             display: flex;
             align-items: center;
-            gap: 32px;
+            gap: 24px;
             margin-left: auto;
         }
 
         .nav-menu {
             display: flex;
-            gap: 24px;
+            gap: 20px;
             list-style: none;
             align-items: center;
         }
@@ -149,30 +140,45 @@ $mockup_images = [
 
         .user-section {
             display: flex;
-            flex-direction: column;
-            align-items: flex-end;
-            gap: 4px;
-            padding-left: 24px;
+            align-items: center;
+            gap: 12px;
+            padding-left: 20px;
             border-left: 2px solid #e5e7eb;
         }
 
-        .user-email {
-            font-size: 0.85rem;
-            color: var(--gray);
-            font-weight: 500;
+        .avatar-small {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid var(--gold-light);
         }
 
-        .logout-link {
+        .user-display {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+        }
+
+        .user-name {
+            font-size: 0.9rem;
+            font-weight: 700;
+            color: var(--dark);
+        }
+
+        .user-links {
+            display: flex;
+            gap: 12px;
+        }
+
+        .user-links a {
+            font-size: 0.85rem;
             color: var(--gold-primary);
             text-decoration: none;
-            font-weight: 700;
-            font-size: 0.9rem;
-            display: flex;
-            align-items: center;
-            gap: 6px;
+            font-weight: 600;
         }
 
-        .logout-link:hover {
+        .user-links a:hover {
             color: var(--gold-dark);
         }
 
@@ -244,17 +250,19 @@ $mockup_images = [
 
         .hero-image {
             text-align: center;
-            min-height: 300px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            perspective: 1000px;
         }
 
-        .hero-image img {
-            max-width: 100%;
+        .phone-mockup {
+            width: 320px;
             height: auto;
-            border-radius: 20px;
-            filter: drop-shadow(0 20px 40px rgba(212, 175, 55, 0.2));
+            filter: drop-shadow(0 25px 50px rgba(0, 0, 0, 0.15));
+            transform: rotateY(-5deg) rotateX(5deg);
+            transition: transform 0.5s;
+        }
+
+        .hero-image:hover .phone-mockup {
+            transform: rotateY(0deg) rotateX(0deg);
         }
 
         .search-section {
@@ -305,11 +313,6 @@ $mockup_images = [
             cursor: pointer;
             min-width: 220px;
             font-weight: 600;
-        }
-
-        .sort-select:focus {
-            outline: none;
-            border-color: var(--gold-primary);
         }
 
         .products-grid {
@@ -516,8 +519,7 @@ $mockup_images = [
         <div class="container">
             <div class="navbar-content">
                 <a href="katalog.php" class="navbar-brand">
-                    <i class="bi bi-lightning-charge-fill"></i>
-                    7CellX
+                    <i class="bi bi-lightning-charge-fill"></i>7CellX
                 </a>
                 <div class="nav-right">
                     <ul class="nav-menu">
@@ -526,12 +528,24 @@ $mockup_images = [
                         <li><a href="chat.php"><i class="bi bi-chat-dots"></i> Chat Support</a></li>
                     </ul>
                     <div class="user-section">
-                        <div class="user-email">
-                            <?php echo htmlspecialchars($user_email); ?>
+                        <?php if (!empty($_SESSION['profile_picture'])): ?>
+                            <img src="../uploads/profiles/<?php echo htmlspecialchars($_SESSION['profile_picture']); ?>"
+                                class="avatar-small" alt="Profile">
+                        <?php else: ?>
+                            <div class="avatar-small"
+                                style="background: var(--gold-light); display: flex; align-items: center; justify-content: center; color: var(--gold-dark); font-weight: 700;">
+                                <?php echo strtoupper(substr($_SESSION['username'] ?? 'U', 0, 1)); ?>
+                            </div>
+                        <?php endif; ?>
+                        <div class="user-display">
+                            <span class="user-name">
+                                <?php echo htmlspecialchars($_SESSION['username'] ?? $_SESSION['nama']); ?>
+                            </span>
+                            <div class="user-links">
+                                <a href="settings.php"><i class="bi bi-gear"></i> Pengaturan</a>
+                                <a href="../auth/logout.php"><i class="bi bi-box-arrow-right"></i> Logout</a>
+                            </div>
                         </div>
-                        <a href="../auth/logout.php" class="logout-link">
-                            <i class="bi bi-box-arrow-right"></i> Logout
-                        </a>
                     </div>
                 </div>
             </div>
@@ -545,14 +559,12 @@ $mockup_images = [
                     <h1>NEW SMARTPHONE <span>COMPARE MODELS</span></h1>
                     <p>Temukan smartphone premium dengan teknologi terbaru. Kualitas terbaik, harga kompetitif, dan
                         garansi resmi untuk kenyamanan Anda.</p>
-                    <a href="#products" class="btn-primary">
-                        <i class="bi bi-bag"></i> Belanja Sekarang
-                    </a>
+                    <a href="#products" class="btn-primary"><i class="bi bi-bag"></i> Belanja Sekarang</a>
                 </div>
                 <div class="hero-image">
-                    <img src="https://images.unsplash.com/photo-1592899677712-a5a254503381?w=600&h=400&fit=crop&q=80"
-                        alt="Smartphone Premium"
-                        onerror="this.onerror=null; this.src='https://placehold.co/600x400/f4e5c2/d4af37?text=7CellX+Premium+Phones';">
+                    <img src="https://images.unsplash.com/photo-1556656793-02715d8dd6f5?w=600&h=400&fit=crop"
+                        alt="Smartphone Mockup" class="phone-mockup"
+                        onerror="this.onerror=null; this.src='https://placehold.co/600x400/f4e5c2/d4af37?text=7CellX+Preview';">
                 </div>
             </div>
         </div>
@@ -625,9 +637,8 @@ $mockup_images = [
                             <div class="product-price">Rp
                                 <?php echo number_format($harga, 0, ',', '.'); ?>
                             </div>
-                            <a href="detail.php?id=<?php echo $produk['id']; ?>" class="btn-detail">
-                                <i class="bi bi-eye"></i> Detail
-                            </a>
+                            <a href="detail.php?id=<?php echo $produk['id']; ?>" class="btn-detail"><i class="bi bi-eye"></i>
+                                Detail</a>
                         </div>
                     </div>
                 <?php endforeach; ?>
@@ -637,10 +648,7 @@ $mockup_images = [
 
     <footer class="footer">
         <div class="container">
-            <div class="footer-brand">
-                <i class="bi bi-lightning-charge-fill"></i>
-                7CellX
-            </div>
+            <div class="footer-brand"><i class="bi bi-lightning-charge-fill"></i>7CellX</div>
             <p style="opacity: 0.8;">Premium Smartphone Store - Kualitas Terbaik untuk Anda</p>
             <p style="margin-top: 16px; opacity: 0.6;">© 2024 - Project UAS PBW</p>
         </div>
