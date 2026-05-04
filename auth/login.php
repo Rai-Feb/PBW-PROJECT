@@ -44,7 +44,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
         $error = "Email atau password salah!";
     }
-}
+
 ?>
 <!DOCTYPE html>
 <html lang="id">
